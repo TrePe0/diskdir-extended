@@ -1,6 +1,6 @@
 // (c) 2004 Peter Trebaticky
-// DiskDir Extended v1.3, plugin for Total Commander, www.ghisler.com
-// Last change: 2004/02/19
+// DiskDir Extended v1.31, plugin for Total Commander, www.ghisler.com
+// Last change: 2004/02/22
 
 #include "wcxhead.h"
 #include "defs.h"
@@ -549,6 +549,7 @@ int ListZIP(const char* fileName)
 		if(unzGetCurrentFileInfo(fzip, &info, fname, MAX_FULL_PATH_LEN, NULL, 0, NULL, 0) == UNZ_OK)
 		{
 			UnixToWindowsDelimiter(fname);
+			OemToChar(fname, fname);
 			strcpy(fullPath + basePathCnt, fname);
 			sortedList.Insert(fullPath, info.uncompressed_size,
 				((info.tmu_date.tm_year - 1980) << 25) |
@@ -580,6 +581,7 @@ int ListRAR(const char* fileName)
 	fullPath[basePathCnt] = '\0';
 	while(list != NULL)
 	{
+		OemToChar(list->item.Name, list->item.Name);
 		strcpy(fullPath + basePathCnt, list->item.Name);
 		if((list->item.FileAttr & 16) > 0 && fullPath[strlen(fullPath) - 1] != '\\')
 			strcat(fullPath, "\\");
@@ -652,6 +654,7 @@ int ListACE(const char* fileName)
 			if((attr & 16) > 0 && fullPath[strlen(fullPath) - 1] != '\\')
 				strcat(fullPath, "\\");
 			UnixToWindowsDelimiter(fullPath + basePathCnt);
+			OemToChar(fullPath + basePathCnt, fullPath + basePathCnt);
 
 			sortedList.Insert(fullPath, origSize, fTime, (attr & 16) > 0);
 
@@ -728,6 +731,7 @@ int ListARJ(const char* fileName)
 			fseek(farj, i, SEEK_CUR); // skip comment
 
 			UnixToWindowsDelimiter(fullPath + basePathCnt);
+			OemToChar(fullPath + basePathCnt, fullPath + basePathCnt);
 
 			sortedList.Insert(fullPath, origSize, fTime, headType == 3);
 
@@ -1478,6 +1482,7 @@ void list_archive (gzFile ftar, int fType)
 	strncpy(fullPath, curPath, basePathCnt);
 	fullPath[basePathCnt] = '\0';
 	UnixToWindowsDelimiter(current_file_name);
+//	OemToChar(current_file_name, current_file_name);
 	strcpy(fullPath + basePathCnt, current_file_name);
 	if(current_header->header.typeflag == DIRTYPE) 
 		if(fullPath[strlen(fullPath) - 1] != '\\') strcat(fullPath, "\\");

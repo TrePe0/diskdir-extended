@@ -1,4 +1,4 @@
-DiskDir Extended 1.3 (2004-02-19) - plugin for Total Commander
+DiskDir Extended 1.31 (2004-02-24) - plugin for Total Commander
 ================
 
 The same as DiskDir - creates a list file with all selected files and directories,
@@ -42,6 +42,9 @@ Bratislava (Slovakia)
 mailto: peter.trebaticky@gmail.com
 
 Changelog:  
+**1.31**
+  fixed displaying file names containing international characters
+
 **1.3**
   Pressing F3 (view) or F5 (copy) on a file inside list file now works if the
   original source is available - e.g. if you made list of CD and that CD is in
@@ -52,7 +55,7 @@ Changelog:
   added support for
 
 * tar
-* tgz (tar.gz),
+* tgz (tar.gz)
 * tbz (tbz2, tar.bz, tar.bz2)
 
 **1.1**
