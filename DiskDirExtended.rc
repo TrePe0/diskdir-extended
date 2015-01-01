@@ -1,0 +1,166 @@
+//Microsoft Developer Studio generated resource script.
+//
+#include "resrc1.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#define APSTUDIO_HIDDEN_SYMBOLS
+#include "windows.h"
+#undef APSTUDIO_HIDDEN_SYMBOLS
+#include "resource.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// Czech resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_CSY)
+#ifdef _WIN32
+LANGUAGE LANG_CZECH, SUBLANG_DEFAULT
+#pragma code_page(1250)
+#endif //_WIN32
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_SETTINGS DIALOG DISCARDABLE  0, 0, 184, 86
+STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "DiskDir Extended - Settings"
+FONT 8, "MS Sans Serif"
+BEGIN
+    CONTROL         "yes",IDC_ACE,"Button",BS_AUTO3STATE | BS_CENTER | 
+                    BS_VCENTER | BS_PUSHLIKE | BS_FLAT | WS_TABSTOP,26,13,19,
+                    12
+    CONTROL         "yes",IDC_ARJ,"Button",BS_AUTO3STATE | BS_CENTER | 
+                    BS_VCENTER | BS_PUSHLIKE | BS_FLAT | WS_TABSTOP,26,27,19,
+                    12
+    CONTROL         "yes",IDC_CAB,"Button",BS_AUTO3STATE | BS_CENTER | 
+                    BS_VCENTER | BS_PUSHLIKE | BS_FLAT | WS_TABSTOP,26,41,19,
+                    12
+    CONTROL         "yes",IDC_JAR,"Button",BS_AUTO3STATE | BS_CENTER | 
+                    BS_VCENTER | BS_PUSHLIKE | BS_FLAT | WS_TABSTOP,26,55,19,
+                    12
+    CONTROL         "yes",IDC_RAR,"Button",BS_AUTO3STATE | BS_CENTER | 
+                    BS_VCENTER | BS_PUSHLIKE | BS_FLAT | WS_TABSTOP,26,69,19,
+                    12
+    CONTROL         "yes",IDC_ZIP,"Button",BS_AUTO3STATE | BS_CENTER | 
+                    BS_VCENTER | BS_PUSHLIKE | BS_FLAT | WS_TABSTOP,70,55,19,
+                    12
+    PUSHBUTTON      "Cancel",IDCANCEL,143,64,37,14
+    DEFPUSHBUTTON   "OK",IDOK,101,64,37,14
+    PUSHBUTTON      "Additional Info...",IDC_INFO,101,44,79,12,BS_FLAT
+    GROUPBOX        "List archives",IDC_STATIC,4,3,90,81,BS_CENTER
+    CONTROL         "Version 1.3\n(c) 2004 Peter Trebaticky\nBratislava (Slovakia)\nmailto: trepe@szm.sk",
+                    IDC_STATIC,"Static",SS_LEFTNOWORDWRAP | WS_GROUP,101,5,
+                    81,35
+    CTEXT           "ACE",IDC_STATIC,6,13,18,12,SS_CENTERIMAGE
+    CTEXT           "ARJ",IDC_STATIC,6,27,18,12,SS_CENTERIMAGE
+    CTEXT           "CAB",IDC_STATIC,6,41,18,12,SS_CENTERIMAGE
+    CTEXT           "JAR",IDC_STATIC,6,55,18,12,SS_CENTERIMAGE
+    CTEXT           "RAR",IDC_STATIC,6,69,18,12,SS_CENTERIMAGE
+    CTEXT           "ZIP",IDC_STATIC,50,55,18,12,SS_CENTERIMAGE
+    CONTROL         "yes",IDC_TAR,"Button",BS_AUTO3STATE | BS_CENTER | 
+                    BS_VCENTER | BS_PUSHLIKE | BS_FLAT | WS_TABSTOP,70,13,19,
+                    12
+    CTEXT           "TAR",IDC_STATIC,50,13,18,12,SS_CENTERIMAGE
+    CONTROL         "yes",IDC_TGZ,"Button",BS_AUTO3STATE | BS_CENTER | 
+                    BS_VCENTER | BS_PUSHLIKE | BS_FLAT | WS_TABSTOP,70,41,19,
+                    12
+    CTEXT           "TGZ",IDC_STATIC,50,41,18,12,SS_CENTERIMAGE
+    CONTROL         "yes",IDC_TBZ,"Button",BS_AUTO3STATE | BS_CENTER | 
+                    BS_VCENTER | BS_PUSHLIKE | BS_FLAT | WS_TABSTOP,70,27,19,
+                    12
+    CTEXT           "TBZ",IDC_STATIC,50,27,18,12,SS_CENTERIMAGE
+END
+
+IDD_LIST_FILE DIALOG DISCARDABLE  0, 0, 180, 61
+STYLE DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "DiskDir Extended - Question"
+FONT 8, "MS Sans Serif"
+BEGIN
+    DEFPUSHBUTTON   "Yes",IDOK,4,40,40,18,BS_CENTER | BS_VCENTER
+    PUSHBUTTON      "No",IDCANCEL,48,40,40,18,BS_CENTER | BS_VCENTER
+    PUSHBUTTON      "Yes for all\nof this type",IDC_YES_FORALL,92,40,40,18,
+                    BS_CENTER | BS_VCENTER | BS_MULTILINE
+    PUSHBUTTON      "No for all\nof this type",IDC_NO_FORALL,136,40,40,18,
+                    BS_CENTER | BS_VCENTER | BS_MULTILINE
+    LTEXT           "Should I list the contents of this file?",IDC_STATIC,4,
+                    4,173,8
+    LTEXT           "",IDC_FILE_NAME,9,15,167,25
+END
+
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE DISCARDABLE 
+BEGIN
+    "resrc1.h\0"
+END
+
+2 TEXTINCLUDE DISCARDABLE 
+BEGIN
+    "#define APSTUDIO_HIDDEN_SYMBOLS\r\n"
+    "#include ""windows.h""\r\n"
+    "#undef APSTUDIO_HIDDEN_SYMBOLS\r\n"
+    "#include ""resource.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE DISCARDABLE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO DISCARDABLE 
+BEGIN
+    IDD_SETTINGS, DIALOG
+    BEGIN
+        RIGHTMARGIN, 149
+        BOTTOMMARGIN, 74
+    END
+
+    IDD_LIST_FILE, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 173
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 21
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+#endif    // Czech resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+
