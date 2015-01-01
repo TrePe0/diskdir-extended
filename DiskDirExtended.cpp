@@ -4,7 +4,7 @@
 
 #include "wcxhead.h"
 #include "defs.h"
-#include "SortedList.h"
+#include "DirTree.h"
 #include <time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -19,19 +19,19 @@
 #include "resource.h"
 #include "resrc1.h"
 
-SortedList sortedList;
 // for ReadHeader+ProcessFile as well as PackFiles
 char curPath[MAX_FULL_PATH_LEN];
-int curPathLen;
+char curDestPath[MAX_FULL_PATH_LEN];
 
-char curFileName[MAX_PATH];
-char mainSrcPath[MAX_PATH]; // first line of .lst file
+char curFileName[MAX_FULL_PATH_LEN];
+char mainSrcPath[MAX_FULL_PATH_LEN]; // first line of .lst file
 tProcessDataProc progressFunction;
 tChangeVolProc changeVolFunction;
 char todayStr[20]; // "%d.%d.%d\t%d:%d.%d", year, month, day, hour, minute, second
 int basePathCnt = 0;
-char iniFileName[MAX_PATH];
+char iniFileName[MAX_FULL_PATH_LEN];
 HINSTANCE dllInstance;
+DirTree* sortedList = NULL; // global because of CAB archives
 
 FILE* fout; // file being created
 int ListZIP(const char* fileName);
@@ -69,19 +69,19 @@ HANDLE __stdcall OpenArchive (tOpenArchiveData *archiveData)
 
 int __stdcall ReadHeader (HANDLE handle, tHeaderData *headerData)
 {
-	char str[MAX_PATH + 100];
+	char str[MAX_FULL_PATH_LEN];
 	char *retval;
 
 again:
-	retval = fgets(str, MAX_PATH + 100, (FILE*)handle);
+	retval = fgets(str, MAX_FULL_PATH_LEN, (FILE*)handle);
 	while(retval != NULL && strchr(str, '\t') == NULL) 
 	{
-		strncpy(mainSrcPath, str, MAX_PATH); mainSrcPath[MAX_PATH - 1] = '\0';
+		strncpy(mainSrcPath, str, MAX_FULL_PATH_LEN); mainSrcPath[MAX_FULL_PATH_LEN - 1] = '\0';
 		if(mainSrcPath[strlen(mainSrcPath) - 1] == '\n') 
 			mainSrcPath[strlen(mainSrcPath) - 1] = '\0';
 		if(mainSrcPath[strlen(mainSrcPath) - 1] != '\\')
 			strcat(mainSrcPath, "\\");
-		retval = fgets(str, MAX_PATH + 100, (FILE*)handle);
+		retval = fgets(str, MAX_FULL_PATH_LEN, (FILE*)handle);
 	}
 
 	if(retval != NULL)
@@ -111,7 +111,6 @@ again:
 		if(str[i - 1] == '\\' || i == 0)
 		{
 			strcpy(curPath, headerData->FileName);
-			curPathLen = strlen(curPath);
 			if(i == 0) goto again; // separator
 			// this way the packed file size will be displayed
 			if(headerData->UnpSize == 0) headerData->FileAttr = 16; 
@@ -134,6 +133,7 @@ int __stdcall ProcessFile (HANDLE handle, int operation, char *destPath, char *d
 {
 	static char wholeNameSrc[MAX_FULL_PATH_LEN];
 	static char wholeNameDest[MAX_FULL_PATH_LEN];
+	static char buf[MAX_FULL_PATH_LEN];
 	FILE *fin, *fout;
 	int i;
 
@@ -162,12 +162,17 @@ int __stdcall ProcessFile (HANDLE handle, int operation, char *destPath, char *d
 				fclose(fin);
 				return E_ECREATE;
 			}
-			i = fread(wholeNameDest, 1, MAX_FULL_PATH_LEN, fin);
+			i = fread(buf, 1, MAX_FULL_PATH_LEN, fin);
 			while(i > 0)
 			{
-				fwrite(wholeNameDest, i, 1, fout);
-				progressFunction(wholeNameSrc, i);
-				i = fread(wholeNameDest, 1, MAX_FULL_PATH_LEN, fin);
+				fwrite(buf, i, 1, fout);
+				if (progressFunction(wholeNameSrc, i) == 0) {
+					fclose(fin);
+					fclose(fout);
+					unlink(wholeNameDest);
+					return E_EABORTED;
+				}
+				i = fread(buf, 1, MAX_FULL_PATH_LEN, fin);
 			}
 			fclose(fin);
 			fclose(fout);
@@ -197,85 +202,118 @@ void __stdcall SetProcessDataProc (HANDLE hArcData, tProcessDataProc pProcessDat
 
 int __stdcall GetPackerCaps()
 {
-	return PK_CAPS_NEW | PK_CAPS_MULTIPLE | PK_CAPS_OPTIONS;
+	return PK_CAPS_NEW | PK_CAPS_MODIFY | PK_CAPS_DELETE | PK_CAPS_MULTIPLE | PK_CAPS_OPTIONS;
 }
 
+
 /*
-  Appropriately writes given file to fout using curPath variable
-      fName: name of file including path (ends with '\\' if it is directory)
-             path is relative to srcPath (obtained from PackFiles function)
-			 path has to contain '\\' as delimiters (not '/')
-      fSize: size of the file
-  fDateTime: timestamp in MSDOS format
+  Reads the contents of open file and fills sortedList
+  overwrites mainSrcPath with the one from file
 */
-void WriteFileToFout(const char* fName, const unsigned fSize, const unsigned fDateTime)
+void FillSortedListFromFile(DirTree **sortedList, FILE* fin) {
+	if (*sortedList != NULL) delete *sortedList;
+	*sortedList = new DirTree();
+
+	char str[MAX_FULL_PATH_LEN];
+	char fName[MAX_FULL_PATH_LEN];
+	unsigned long long fSize;
+	unsigned fTime, fAttr;
+	char *retval;
+	curPath[0] = '\0';
+	curDestPath[0] = '\0';
+
+again:
+	retval = fgets(str, MAX_FULL_PATH_LEN, fin);
+	while(retval != NULL && strchr(str, '\t') == NULL) 
+	{
+		strncpy(mainSrcPath, str, MAX_FULL_PATH_LEN); mainSrcPath[MAX_FULL_PATH_LEN - 1] = '\0';
+		if(mainSrcPath[strlen(mainSrcPath) - 1] == '\n') 
+			mainSrcPath[strlen(mainSrcPath) - 1] = '\0';
+		if(mainSrcPath[strlen(mainSrcPath) - 1] != '\\')
+			strcat(mainSrcPath, "\\");
+		retval = fgets(str, MAX_FULL_PATH_LEN, fin);
+	}
+
+	if(retval != NULL)
+	{
+		int i, year, month, day, hour, minute, second;
+
+		i = (int)strchr(str, '\t') - (int)str;
+		if(str[i - 1] != '\\' && i != 0) // if not directory or separator
+		{
+			// prepend current directory
+			strcpy(fName, curPath);
+			strncat(fName, str, i);
+			fName[strlen(curPath) + i] = '\0';
+		}
+		else
+		{
+			strncpy(fName, str, i);
+			fName[i] = '\0';
+		}
+		sscanf(str + i, "%llu\t%d.%d.%d\t%d:%d.%d", &fSize,
+			&year, &month, &day,
+			&hour, &minute, &second);
+		fTime = 
+			((year - 1980) << 25) | (month << 21) | (day << 16) | 
+			(hour << 11) | (minute << 5) | (second/2);
+
+		if(str[i - 1] == '\\' || i == 0)
+		{
+			strcpy(curPath, fName);
+			if(i == 0) goto again; // separator
+			// this way the packed file size will be displayed
+			if(fSize == 0) fAttr = 16; 
+		} 
+		else fAttr = 0;
+
+		(*sortedList)->insert(curDestPath, fName, fSize, fTime, fAttr);
+
+		strcpy(curFileName, fName);
+
+		goto again;
+	}
+}
+
+int __stdcall DeleteFiles (char *PackedFile, char *deleteList)
 {
-	int year = (fDateTime >> 25) + 1980;
-	int month = (fDateTime & 0x1FFFFFF) >> 21;
-	int day = (fDateTime & 0x1FFFFF) >> 16;
-	int hour = (fDateTime & 0xFFFF) >> 11;
-	int minute = (fDateTime & 0x7FF) >> 5;
-	int second = (fDateTime & 0x1F) * 2;
-	int fNameLen = strlen(fName);
-	bool isDir = (fName[fNameLen - 1] == '\\');
+	FILE *fout = fopen(PackedFile, "rt");
+	if (fout == NULL) return E_EOPEN;
+	DirTree *sortedList = NULL;
+	FillSortedListFromFile(&sortedList, fout);
+	fclose(fout);
 
-	if(strncmp(fName, curPath, curPathLen) == 0)
-	{
-		if(isDir)
-		{
-			fprintf(fout, "%s", fName);
-			strcpy(curPath, fName); curPathLen = strlen(curPath);
-		}
-		else
-		{
-			if(strrchr(fName, '\\') != NULL)
-			{
-				int j;
-				j = (int)strrchr(fName, '\\') - (int)fName + 1;
-				if(j > curPathLen)
-				{
-					strncpy(curPath, fName, j);
-					curPath[j] = '\0';
-					curPathLen = strlen(curPath);
-					fprintf(fout, "%s\t0\t%d.%d.%d\t%d:%d.%d\n", curPath, 
-						year, month, day, hour, minute, second);
-				}
-			}
-
-			fprintf(fout, "%s", fName + curPathLen);
-		}
-	}
-	else
-	{
-		if(isDir)
-		{
-			fprintf(fout, "%s", fName);
-			strcpy(curPath, fName); curPathLen = strlen(curPath);
-		}
-		else
-		{
-			if(strrchr(fName, '\\') != NULL)
-			{
-				int j;
-				j = (int)strrchr(fName, '\\') - (int)fName + 1;
-				strncpy(curPath, fName, j);
-				curPath[j] = '\0';
-				curPathLen = strlen(curPath);
-			}
-			else
-			{
-				curPath[0] = '\0'; curPathLen = 0;
-			}
-			fprintf(fout, "%s\t0\t%d.%d.%d\t%d:%d.%d\n", curPath,
-				year, month, day, hour, minute, second);
-			fprintf(fout, "%s", fName + curPathLen);
-		}
+	fout = fopen(PackedFile, "wt");
+	if (fout == NULL) {
+		delete sortedList;
+		return E_EOPEN;
 	}
 
-	fprintf(fout, "\t%d\t%d.%d.%d\t%d:%d.%d\n",
-		fSize,
-		year, month, day,
-		hour, minute, second);
+	fprintf(fout, "%s\n", mainSrcPath);
+
+	int i = 0;
+	char fName[MAX_FULL_PATH_LEN];
+
+	while(deleteList[i] != '\0')
+	{
+		strcpy(fName, "");
+		strcpy(fName, deleteList + i);
+		int n = strlen(fName);
+		if (n > 4) { // delete whole directory
+			if (fName[n-3] == '*' && fName[n-2] == '.' && fName[n-1] == '*')
+				fName[n-3] = '\0';
+		}
+		sortedList->remove(fName);
+		i += strlen(deleteList + i) + 1;
+	}
+
+	curPath[0] = '\0';
+	sortedList->writeOut(fout, curPath);
+	delete sortedList;
+
+	fclose(fout);
+
+	return 0;
 }
 
 int DetermineFileType(const char *fName)
@@ -352,28 +390,33 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 	int i;
 	char str[MAX_FULL_PATH_LEN];
 	char fName[MAX_FULL_PATH_LEN];
+	char fDestName[MAX_FULL_PATH_LEN];
 	int fType;
 	unsigned timeStamp;
 
-	fout = fopen(packedFile, "wt");
-	if(fout == NULL) return E_ECREATE;
-	
-	if(!sortedList.Create()) sortedList.Clear();
-	ReadIniFile();
+	strcpy(mainSrcPath, srcPath);
 
-	fprintf(fout, "%s\n", srcPath);
-	if(subPath != NULL)
-	{
-		time_t t;
-		fprintf(fout, "%s", subPath);
-		if(subPath[strlen(subPath) - 1] != '\\') fprintf(fout, "\\");
-		(void)time(&t);
-		struct tm *ts;
-		ts = localtime(&t);
-		fprintf(fout, "\t0\t%s\n", todayStr);
+	// are we updateing?
+	fout = fopen(packedFile, "rt");
+	if (fout != NULL) {
+		FillSortedListFromFile(&sortedList, fout);
+		fclose(fout);
+	} else {
+		if (sortedList != NULL) delete sortedList;
+		sortedList = new DirTree();
 	}
 
-	curPath[0] = '\0'; curPathLen = 0; i = 0;
+	ReadIniFile();
+
+	curPath[0] = '\0';
+	curDestPath[0] = '\0';
+	if(subPath != NULL)
+	{
+		strcpy(curDestPath, subPath);
+		if(curDestPath[strlen(curDestPath) - 1] != '\\') strcat(curDestPath, "\\");
+	}
+
+	i = 0;
 	while(addList[i] != '\0')
 	{
 		strcpy(str, srcPath);
@@ -400,7 +443,12 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 					(ts.wHour << 11) | (ts.wMinute << 5) | (ts.wSecond / 2);
 
 		strcpy(fName, addList + i);
-		progressFunction(fName, 0);
+		if (progressFunction(fName, 0) == 0) {
+			delete sortedList;
+			sortedList = NULL;
+			return E_EABORTED;
+		}
+
 		switch(listThisType[fType])
 		{
 			case LIST_NO:
@@ -429,63 +477,100 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 			case FILE_TYPE_ZIP:
 			case FILE_TYPE_JAR:
 				strcat(fName, "\\");
-				sortedList.Insert(fName, buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
+				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
-				ListZIP(str);
+				if (ListZIP(str) < 0) {
+					delete sortedList;
+					sortedList = NULL;
+					return E_EABORTED;
+				}
 			break;
 			case FILE_TYPE_RAR:
 				strcat(fName, "\\");
-				sortedList.Insert(fName, buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
+				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
-				ListRAR(str);
+				if (ListRAR(str) < 0) {
+					delete sortedList;
+					sortedList = NULL;
+					return E_EABORTED;
+				}
 			break;
 			case FILE_TYPE_TAR:
 			case FILE_TYPE_TGZ:
 			case FILE_TYPE_TBZ:
 				strcat(fName, "\\");
-				sortedList.Insert(fName, buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
+				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
-				ListTAR(str, fType);
+				if (ListTAR(str, fType) < 0) {
+					delete sortedList;
+					sortedList = NULL;
+					return E_EABORTED;
+				}
 			break;
 			case FILE_TYPE_ARJ:
 				strcat(fName, "\\");
-				sortedList.Insert(fName, buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
+				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
-				ListARJ(str);
+				if (ListARJ(str) < 0) {
+					delete sortedList;
+					sortedList = NULL;
+					return E_EABORTED;
+				}
 			break;
 			case FILE_TYPE_ACE:
 				strcat(fName, "\\");
-				sortedList.Insert(fName, buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
+				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
-				ListACE(str);
+				if (ListACE(str) < 0) {
+					delete sortedList;
+					sortedList = NULL;
+					return E_EABORTED;
+				}
 			break;
 			case FILE_TYPE_CAB:
 				strcat(fName, "\\");
-				sortedList.Insert(fName, buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
+				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
-				ListCAB(str);
+				if (ListCAB(str) < 0) {
+					delete sortedList;
+					sortedList = NULL;
+					return E_EABORTED;
+				}
 			break;
 			default:
-				sortedList.Insert(fName, buf.nFileSizeLow, timeStamp, fType);
+				sortedList->insert(
+					curDestPath, 
+					fName, 
+					buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, 
+					timeStamp, 
+					fType);
 				basePathCnt = 0;
 		}
-		progressFunction(fName, buf.nFileSizeLow);
+		if (progressFunction(fName, buf.nFileSizeLow) == 0) {
+			delete sortedList;
+			sortedList = NULL;
+			return E_EABORTED;
+		}
 
 		i += strlen(addList + i) + 1;
 	}
 
-
-	for(i = sortedList.GetFirst(); i != -1; i = sortedList.GetList()[i].next)
-		WriteFileToFout(sortedList.GetList()[i].name, sortedList.GetList()[i].size, sortedList.GetList()[i].time);
-
+	fout = fopen(packedFile, "wt");
+	if(fout == NULL) return E_EWRITE;
+	fprintf(fout, "%s\n", mainSrcPath);
+	curPath[0] = '\0';
+	sortedList->writeOut(fout, curPath);
 	fclose(fout);
-	sortedList.Destroy();
+
+	delete sortedList;
+	sortedList = NULL;
+
 	return 0;
 }
 
@@ -504,7 +589,7 @@ BOOL APIENTRY DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
 			ts->tm_hour, ts->tm_min, ts->tm_sec);
 
 		// determine, where is this dll (wcx) physically placed
-		GetModuleFileName(instance, iniFileName, MAX_PATH);
+		GetModuleFileName(instance, iniFileName, MAX_FULL_PATH_LEN);
 		if(strrchr(iniFileName, '\\') == NULL) iniFileName[0] = '\0';
 		else iniFileName[1+(int)strrchr(iniFileName, '\\') - (int)iniFileName] = '\0';
 
@@ -529,6 +614,7 @@ inline void UnixToWindowsDelimiter(char *str)
 //----------------------------------------------------------------------------
 // ZIP
 // returns number of packed files
+// or -1 if aborted by user
 int ListZIP(const char* fileName)
 {
 	unzFile fzip; 
@@ -542,8 +628,8 @@ int ListZIP(const char* fileName)
 
 	strncpy(fullPath, curPath, basePathCnt);
 	fullPath[basePathCnt] = '\0';
-
 	if(unzGoToFirstFile(fzip) != UNZ_OK) {unzClose(fzip); return 0;}
+//	FILE*f = fopen("d:\\aaa.txt", "wt");
 	do
 	{
 		if(unzGetCurrentFileInfo(fzip, &info, fname, MAX_FULL_PATH_LEN, NULL, 0, NULL, 0) == UNZ_OK)
@@ -551,24 +637,31 @@ int ListZIP(const char* fileName)
 			UnixToWindowsDelimiter(fname);
 			OemToChar(fname, fname);
 			strcpy(fullPath + basePathCnt, fname);
-			sortedList.Insert(fullPath, info.uncompressed_size,
+			// > 4GB files incompatible
+//			fprintf(f, "\tt->insert(strdup(\"%s\"),0,0,0);\n", fullPath);
+			sortedList->insert(curDestPath, fullPath, info.uncompressed_size,
 				((info.tmu_date.tm_year - 1980) << 25) |
 				((info.tmu_date.tm_mon + 1) << 21) |
 				(info.tmu_date.tm_mday << 16) | 
 				(info.tmu_date.tm_hour << 11) |
 				(info.tmu_date.tm_min << 5) | (info.tmu_date.tm_sec / 2), 
 				fullPath[strlen(fullPath) - 1] == '\\');
+			if (progressFunction(NULL, 0) == 0) {
+				unzClose(fzip);
+				return -1;
+			}
 			num++;
 		}
 	}while(unzGoToNextFile(fzip) == UNZ_OK);
 	unzClose(fzip);
-	
+//	fclose(f);
 	return num;
 }
 
 //----------------------------------------------------------------------------
 // RAR
 // returns number of packed files
+// or -1 if aborted by user
 int ListRAR(const char* fileName)
 {
 	ArchiveList_struct *list = NULL;
@@ -587,7 +680,12 @@ int ListRAR(const char* fileName)
 			strcat(fullPath, "\\");
 		UnixToWindowsDelimiter(fullPath + basePathCnt);
 
-		sortedList.Insert(fullPath, list->item.UnpSize, list->item.FileTime, (list->item.FileAttr & 16) > 0);
+		// > 4GB files incompatible
+		sortedList->insert(curDestPath, fullPath, list->item.UnpSize, list->item.FileTime, (list->item.FileAttr & 16) > 0);
+		if (progressFunction(NULL, 0) == 0) {
+			urarlib_freelist(list);
+			return -1;
+		}
 
 		list = (ArchiveList_struct*)list->next;
 	}
@@ -599,6 +697,7 @@ int ListRAR(const char* fileName)
 //----------------------------------------------------------------------------
 // ACE
 // returns number of packed files
+// or -1 if interrupted by user
 int ListACE(const char* fileName)
 {
 	// ace header structure
@@ -656,7 +755,12 @@ int ListACE(const char* fileName)
 			UnixToWindowsDelimiter(fullPath + basePathCnt);
 			OemToChar(fullPath + basePathCnt, fullPath + basePathCnt);
 
-			sortedList.Insert(fullPath, origSize, fTime, (attr & 16) > 0);
+			// > 4GB files incompatible
+			sortedList->insert(curDestPath, fullPath, origSize, fTime, (attr & 16) > 0);
+			if (progressFunction(NULL, 0) == 0) {
+				fclose(face);
+				return -1;
+			}
 
 			num++;
 			fseek(face, headSize - 31 - fNameSize + skip, SEEK_CUR);
@@ -670,6 +774,7 @@ int ListACE(const char* fileName)
 //----------------------------------------------------------------------------
 // ARJ
 // returns number of packed files
+// or -1 if aborted by user
 int ListARJ(const char* fileName)
 {
 	// arj header relevant fields
@@ -733,7 +838,12 @@ int ListARJ(const char* fileName)
 			UnixToWindowsDelimiter(fullPath + basePathCnt);
 			OemToChar(fullPath + basePathCnt, fullPath + basePathCnt);
 
-			sortedList.Insert(fullPath, origSize, fTime, headType == 3);
+			// > 4GB files incompatible
+			sortedList->insert(curDestPath, fullPath, origSize, fTime, headType == 3);
+			if (progressFunction(NULL, 0) == 0) {
+				fclose(farj);
+				return -1;
+			}
 
 			num++;
 			fseek(farj, compSize + 6, SEEK_CUR);
@@ -747,6 +857,7 @@ int ListARJ(const char* fileName)
 //----------------------------------------------------------------------------
 // CAB
 // returns number of packed files
+// or -1 if aborted by user
 #include <io.h>
 #include <fcntl.h>
 
@@ -772,8 +883,11 @@ FNFDINOTIFY(notification_function)
 			strncpy(fullPath, curPath, basePathCnt);
 			strcpy(fullPath + basePathCnt, pfdin->psz1);
 
-			sortedList.Insert(fullPath, pfdin->cb,
+			sortedList->insert(curDestPath, fullPath, pfdin->cb,
 				(((unsigned)pfdin->date) << 16) | pfdin->time, fullPath[strlen(fullPath) - 1] == '\\');
+			if (progressFunction(NULL, 0) == 0) {
+				return -1;
+			}
 
 			return 0; // skip file (i.e. do not extract)
 
@@ -790,7 +904,7 @@ int ListCAB(const char* cabinet_fullpath)
 	ERF				erf;
 	FDICABINETINFO	fdici;
 	int				hf;
-	char			*p;
+	const char		*p;
 	char			cabinet_name[256];
 	char			cabinet_path[256];
 
@@ -831,14 +945,15 @@ int ListCAB(const char* cabinet_fullpath)
 		cabinet_path[ (int) (p-cabinet_fullpath)+1 ] = 0;
 	}
 
-	if (TRUE != FDICopy(
+	int ret;
+	if (TRUE != (ret = FDICopy(
 		hfdi,
 		cabinet_name, cabinet_path,
 		0, notification_function,
-		NULL, NULL))
+		NULL, NULL)))
 	{
 		(void) FDIDestroy(hfdi);
-		return 0;
+		return ret;
 	}
 
 	(void) FDIDestroy(hfdi);
@@ -940,7 +1055,7 @@ BOOL CALLBACK DialogFunc(HWND hdwnd, UINT Msg, WPARAM wParam, LPARAM lParam);
 
 void __stdcall ConfigurePacker (HWND parent, HINSTANCE dllInstance)
 {
-//	MessageBox(parent, "Version 1.0\nLists ACE, ARJ, CAB, JAR, RAR, ZIP\n(c) 2004 Peter Trebatický, Bratislava (Slovakia)\nmailto: trepe@szm.sk", "DiskDir Extended", MB_OK);
+//	MessageBox(parent, "Version 1.0\nLists ACE, ARJ, CAB, JAR, RAR, ZIP\n(c) 2005 Peter Trebatický, Bratislava (Slovakia)\nmailto: peter.trebaticky@gmail.com", "DiskDir Extended", MB_OK);
 //	long a = GetWindowThreadProcessId(parent, NULL);
 	DialogBox(dllInstance, MAKEINTRESOURCE(IDD_SETTINGS), parent, DialogFunc);
 }
@@ -1054,13 +1169,13 @@ BOOL CALLBACK DialogFunc(HWND hdwnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 			case IDC_INFO: 
 				MessageBox(hdwnd, 
 					"This plugin is free software. It uses:\n"
-					"- minizip (c) 1998-2003 Gilles Vollant\n"
-					"    from zlib 1.2.1 (c) 1995-2003 Jean-loup Gailly and Mark Adler\n"
+					"- minizip 1.01e (c) 1998-2005 Gilles Vollant\n"
+					"    from zlib 1.2.3 (c) 1995-2004 Jean-loup Gailly and Mark Adler\n"
 					"- UniquE RAR File Library 0.4.0 (c) 2000-2002 by Christian Scheurer\n"
 					"- Cabinet SDK (c) 1993-1997 Microsoft Corporation\n"
 					"- parts from GNU tar 1.13 (c) 1994-1999 Free Software Foundation, Inc.\n"
-					"- libbzip2 1.0.2 (c) 1996-2002 Julian R Seward\n"
- 					"- UPX 1.24w (c) 1996-2002 Markus F.X.J. Oberhumer & Laszlo Molnar\n"
+					"- libbzip2 1.0.3 (c) 1996-2005 Julian R Seward\n"
+ 					"- UPX 1.25w (c) 1996-2004 Markus F.X.J. Oberhumer & Laszlo Molnar\n"
 					"    for reducing the size of this plugin",
 					"DiskDir Extended - Additional Information", MB_OK);
 				return TRUE;
@@ -1472,7 +1587,7 @@ void decode_header (union block *header, struct stat *stat_info,
 	stat_info->st_mtime = TIME_FROM_OCT (header->header.mtime);
 }
 
-void list_archive (gzFile ftar, int fType)
+int list_archive (gzFile ftar, int fType)
 {
 	int isextended = 0;		/* to remember if current_header is extended */
 
@@ -1488,14 +1603,15 @@ void list_archive (gzFile ftar, int fType)
 		if(fullPath[strlen(fullPath) - 1] != '\\') strcat(fullPath, "\\");
 	struct tm *tm;
 	tm = localtime (&(current_stat.st_mtime));
-	sortedList.Insert(fullPath, current_stat.st_size,
+	sortedList->insert(curDestPath, fullPath, current_stat.st_size,
 				((tm->tm_year + 1900 - 1980) << 25) |
 				((tm->tm_mon + 1) << 21) |
 				(tm->tm_mday << 16) |
 				(tm->tm_hour << 11) |
 				(tm->tm_min << 5) | (tm->tm_sec / 2), current_header->header.typeflag == DIRTYPE ? 1 : 0);
 
-//	progressFunction(fullPath, current_stat.st_size);
+	if (progressFunction(NULL, 0) == 0) return -1;
+
 	/* Check to see if we have an extended header to skip over also.  */
 	if (current_header->oldgnu_header.isextended)
 		isextended = 1;
@@ -1510,6 +1626,8 @@ void list_archive (gzFile ftar, int fType)
 
 	/* Skip to the next header on the archive.  */
 	skip_file (ftar, current_stat.st_size, fType);
+
+	return 0;
 }
 
 /*-----------------------------------.
@@ -1548,7 +1666,11 @@ int ListTAR(const char* fileName, int fType)
 				/* FIXME: This is a quick kludge before 1.12 goes out.  */
 				current_stat.st_mtime = TIME_FROM_OCT (current_header->header.mtime);
 
-				list_archive(ftar, fType);
+				if (list_archive(ftar, fType) < 0) {
+					free(record_start);
+					fType == FILE_TYPE_TBZ ? BZ2_bzclose(ftar) : gzclose(ftar);
+					return -1;
+				}
 				continue;
 
 			case HEADER_ZERO_BLOCK:

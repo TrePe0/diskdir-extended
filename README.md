@@ -1,4 +1,4 @@
-DiskDir Extended 1.32 (2005-02-26) - plugin for Total Commander
+DiskDir Extended 1.4 (2005-12-28) - plugin for Total Commander
 ================
 
 The same as DiskDir - creates a list file with all selected files and directories,
@@ -8,13 +8,18 @@ Format is fully compatible with DiskDir, i.e. this plugin can display DiskDir
 files, as well as DiskDir can display this plugin's files.
 You can choose which archive types to list.
 
-It creates plain text list files which can be opened in Word, Excel or other 
+It creates plain text list files which can be opened in Word, Excel or other
 office tools which can format TAB-delimited files, and then be formatted for
 printing. It can also be used as a catalog tool: You can scan your CDs with it,
 each to a file, and then search in these catalogs using the Search command with
 the option "Search in archives".
 
-Installation:
+Installation (TotalCommander 6.5 and later):
+
+1. View contents of DiskDirExtended_1.4.zip
+2. Follow instructions
+
+Installation (TotalCommander prior to 6.5):
 
 1. Unzip the DiskDirExtended.wcx to any directory
 2. In Total Commander, choose Configuration - Options
@@ -42,6 +47,13 @@ Bratislava (Slovakia)
 mailto: peter.trebaticky@gmail.com
 
 Changelog:  
+**1.4**
+  
+* added possibility to modify the list file
+* better handling of 'Cancel' button
+* huge files (> 4GB) are internally handled correctly, but the user sees their
+  sizes incorrectly due to limitations of TotalCmd API for packer plugins
+
 **1.32**
   the time of the directories is stored correctly
 
