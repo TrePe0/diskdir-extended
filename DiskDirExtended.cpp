@@ -1,6 +1,6 @@
 // (c) 2004 Peter Trebaticky
-// DiskDir Extended v1.31, plugin for Total Commander, www.ghisler.com
-// Last change: 2004/02/22
+// DiskDir Extended v1.32, plugin for Total Commander, www.ghisler.com
+// Last change: 2005/02/26
 
 #include "wcxhead.h"
 #include "defs.h"
@@ -389,7 +389,7 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 		GetFileAttributesEx(str, GetFileExInfoStandard, (LPVOID)(&buf));
 		if(fType == FILE_TYPE_DIRECTORY)
 		{
-			FileTimeToLocalFileTime(&(buf.ftCreationTime), &t);
+			FileTimeToLocalFileTime(&(buf.ftLastWriteTime), &t);
 			strcat(str, "\\");
 			buf.nFileSizeLow = 0;
 		}

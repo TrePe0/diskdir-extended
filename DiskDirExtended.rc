@@ -56,7 +56,7 @@ BEGIN
     DEFPUSHBUTTON   "OK",IDOK,101,64,37,14
     PUSHBUTTON      "Additional Info...",IDC_INFO,101,44,79,12,BS_FLAT
     GROUPBOX        "List archives",IDC_STATIC,4,3,90,81,BS_CENTER
-    CONTROL         "Version 1.31\n(c) 2004 Peter Trebaticky\nBratislava (Slovakia)\nmailto: trepe@szm.sk",
+    CONTROL         "Version 1.32\n(c) 2004 Peter Trebaticky\nBratislava (Slovakia)\nmailto: trepe@szm.sk",
                     IDC_STATIC,"Static",SS_LEFTNOWORDWRAP | WS_GROUP,101,5,
                     81,35
     CTEXT           "ACE",IDC_STATIC,6,13,18,12,SS_CENTERIMAGE

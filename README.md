@@ -1,4 +1,4 @@
-DiskDir Extended 1.31 (2004-02-24) - plugin for Total Commander
+DiskDir Extended 1.32 (2005-02-26) - plugin for Total Commander
 ================
 
 The same as DiskDir - creates a list file with all selected files and directories,
@@ -42,6 +42,9 @@ Bratislava (Slovakia)
 mailto: peter.trebaticky@gmail.com
 
 Changelog:  
+**1.32**
+  the time of the directories is stored correctly
+
 **1.31**
   fixed displaying file names containing international characters
 
