@@ -830,7 +830,7 @@ HANDLE ISO_OpenArchive( tOpenArchiveData* ArchiveData )
     IsoImage* image = GetImage( ArchiveData->ArcName );
     return image;
 }
-
+#include <cstdio>
 // modified for DiskDirExtended purposes ReadHeader -> readHeaderEx
 int ISO_ReadHeaderEx( HANDLE hArcData, tHeaderDataEx* HeaderData )
 {
@@ -881,16 +881,16 @@ int ISO_ReadHeaderEx( HANDLE hArcData, tHeaderDataEx* HeaderData )
         HeaderData->FileAttr = FA_ARCHIVE;
         HeaderData->FileAttr |= (directory->Record.FileFlags & FATTR_DIRECTORY) ? FA_DIRECTORY : 0;
         HeaderData->FileAttr |= (directory->Record.FileFlags & FATTR_HIDDEN) ? FA_HIDDEN : 0;
-        HeaderData->PackSize = HeaderData->UnpSize = (int)directory->Record.DataLength;
-        HeaderData->PackSizeHigh = HeaderData->UnpSizeHigh = (int)_rotr64(directory->Record.DataLength, 32);
+		HeaderData->PackSize = HeaderData->UnpSize = (HeaderData->FileAttr & FA_DIRECTORY) ? 0 : (int)directory->Record.DataLength;
+        HeaderData->PackSizeHigh = HeaderData->UnpSizeHigh = 0;
     }
     else
     {
         HeaderData->FileAttr = FA_ARCHIVE;
         HeaderData->FileAttr |= (directory->XBOXRecord.FileFlags & XBOX_DIRECTORY) ? FA_DIRECTORY : 0;
         HeaderData->FileAttr |= (directory->XBOXRecord.FileFlags & XBOX_HIDDEN) ? FA_HIDDEN : 0;
-        HeaderData->PackSize = HeaderData->UnpSize = (int)directory->XBOXRecord.DataLength;
-        HeaderData->PackSizeHigh = HeaderData->UnpSizeHigh = (int)_rotr64(directory->XBOXRecord.DataLength, 32);
+        HeaderData->PackSize = HeaderData->UnpSize = (HeaderData->FileAttr & FA_DIRECTORY) ? 0 : (int)directory->XBOXRecord.DataLength;
+        HeaderData->PackSizeHigh = HeaderData->UnpSizeHigh = 0;
     }
 
     return 0;

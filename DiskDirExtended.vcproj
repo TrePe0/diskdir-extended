@@ -221,10 +221,6 @@
 			Filter="cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
 			>
 			<File
-				RelativePath=".\api_totalcmd.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\DirTree.cpp"
 				>
 				<FileConfiguration
@@ -273,6 +269,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\settings.cpp"
+				>
+			</File>
+			<File
 				RelativePath="wcx.def"
 				>
 			</File>
@@ -299,6 +299,10 @@
 			</File>
 			<File
 				RelativePath=".\inilocator.h"
+				>
+			</File>
+			<File
+				RelativePath=".\settings.h"
 				>
 			</File>
 			<File

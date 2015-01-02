@@ -4,7 +4,6 @@
 
 #include "wcxhead.h"
 #include "defs.h"
-#include "inilocator.h"
 #include "DirTree.h"
 #include <time.h>
 #include <sys/types.h>
@@ -18,18 +17,13 @@
 #include "libs/bzip2/bzlib.h"
 #include "libs/iso/iso_wincmd.h"
 #include "api_totalcmd.h"
-#include <map>
-#include <vector>
-#include "libs/inifile/IniFile.h"
 
 #include "resource.h"
 #include "resrc1.h"
 #include <commctrl.h>
+#include "settings.h"
 
 using namespace std;
-
-bool tryCanYouHandleThisFile;
-bool listEmptyFile;
 
 // for ReadHeader+ProcessFile as well as PackFiles
 char curPath[MAX_FULL_PATH_LEN];
@@ -41,14 +35,8 @@ tProcessDataProc progressFunction;
 tChangeVolProc changeVolFunction;
 char todayStr[20]; // "%d.%d.%d\t%d:%d.%d", year, month, day, hour, minute, second
 int basePathCnt = 0;
-char iniFileName[MAX_FULL_PATH_LEN];
 HINSTANCE dllInstance;
 DirTree* sortedList = NULL; // global because of CAB archives
-map <string, pair<string, bool> > wcxmap; // mapping extension -> (wcx, can use CanYouHandleThisFile)
-map <string, pair<string, bool> >::iterator which_wcx; // iterator for wcxmap
-map <string, FILE_TYPE_ELEM> fileTypeMap;
-map <string, FILE_TYPE_ELEM>::iterator fileTypeMapIt;
-vector <string> equivalent_ext; // as lines from DiskDirExtended.ini
 FILE* fout; // file being created
 int ListZIP(const char* fileName);
 int ListRAR(const char* fileName);
@@ -58,6 +46,8 @@ int ListCAB(const char* fileName);
 int ListISO(const char* fileName);
 int ListTAR(const char* fileName, int fType);
 int ListByWCX(const char* wcx_path, const char* fileName);
+bool firstLineRead; // if the first line from lst file was read (= basePath)
+bool notForTC; // used in ReadHeaderEx - do not remove "c:\" part of file name
 
 HANDLE __stdcall OpenArchive (tOpenArchiveData *archiveData)
 {
@@ -75,6 +65,9 @@ HANDLE __stdcall OpenArchive (tOpenArchiveData *archiveData)
 			}
 			curPath[0] = '\0';
 			mainSrcPath[0] = '\0';
+			firstLineRead = false;
+			notForTC = false;
+			settings.readConfig();
 			return f;
 		break;
 		default:
@@ -86,27 +79,33 @@ HANDLE __stdcall OpenArchive (tOpenArchiveData *archiveData)
 int __stdcall ReadHeader (HANDLE handle, tHeaderData *headerData)
 {
 	char str[MAX_FULL_PATH_LEN];
-	char *retval;
+	char *retval, *lom;
 
 again:
 	retval = fgets(str, MAX_FULL_PATH_LEN, (FILE*)handle);
-	while(retval != NULL && strchr(str, '\t') == NULL)
+	lom = strrchr(str, '\\');
+	while(retval != NULL && ((str[0] == '\n' || str[0] == '\0') || (!firstLineRead && strchr(str, '\t') == NULL && lom != NULL && *(lom+1) <= '\n')))
 	{
-		strncpy(mainSrcPath, str, MAX_FULL_PATH_LEN); mainSrcPath[MAX_FULL_PATH_LEN - 1] = '\0';
-		if(mainSrcPath[strlen(mainSrcPath) - 1] == '\n')
-			mainSrcPath[strlen(mainSrcPath) - 1] = '\0';
-		if(mainSrcPath[0] != '\0' && mainSrcPath[strlen(mainSrcPath) - 1] != '\\')
-			strcat(mainSrcPath, "\\");
+		if (!(str[0] == '\n' || str[0] == '\0')) {
+			strncpy(mainSrcPath, str, MAX_FULL_PATH_LEN); mainSrcPath[MAX_FULL_PATH_LEN - 1] = '\0';
+			if(mainSrcPath[strlen(mainSrcPath) - 1] == '\n')
+				mainSrcPath[strlen(mainSrcPath) - 1] = '\0';
+			if(mainSrcPath[0] != '\0' && mainSrcPath[strlen(mainSrcPath) - 1] != '\\')
+				strcat(mainSrcPath, "\\");
+			firstLineRead = true;
+		}
 		retval = fgets(str, MAX_FULL_PATH_LEN, (FILE*)handle);
+		lom = strrchr(str, '\\');
 	}
 
 	if(retval != NULL)
 	{
-		int i, year, month, day, hour, minute, second;
+		firstLineRead = true;
+		int i, cnt, year, month, day, hour, minute, second;
 
 		i = (int)strchr(str, '\t') - (int)str;
 		// fix for nonstandard lst files (no size and date)
-//		if (i == 0) i = strlen(str);
+		if (i < 0) {i = strlen(str); if (i > 0 && str[i - 1] == '\n') i--;}
 
 		// if not directory or separator
 		// or it contains full path
@@ -123,13 +122,15 @@ again:
 			headerData->FileName[min(i, MAX_FILE_NAME_LEN - 1)] = '\0';
 		}
 		headerData->UnpSize = 0;
-		year = 1980; month = day = hour = minute = second = 0;
-		sscanf(str + i, "%d\t%d.%d.%d\t%d:%d.%d", &(headerData->UnpSize),
+		year = month = day = hour = minute = second = 0;
+		cnt = sscanf(str + i, "%d\t%d.%d.%d\t%d:%d.%d", &(headerData->UnpSize),
 			&year, &month, &day,
 			&hour, &minute, &second);
-		headerData->FileTime =
+		headerData->FileTime = (cnt < 4) ? -1 :
 			((year - 1980) << 25) | (month << 21) | (day << 16) |
 			(hour << 11) | (minute << 5) | (second/2);
+
+		if (notForTC) if (settings.getListColumns() < cnt) settings.setListColumns(cnt);
 
 		if(i == 0 || str[i - 1] == '\\')
 		{
@@ -165,28 +166,34 @@ again:
 int __stdcall ReadHeaderEx (HANDLE handle, tHeaderDataEx *headerData)
 {
 	char str[MAX_FULL_PATH_LEN];
-	char *retval;
+	char *retval, *lom;
 	unsigned __int64 fSize;
 
 again:
 	retval = fgets(str, MAX_FULL_PATH_LEN, (FILE*)handle);
-	while(retval != NULL && strchr(str, '\t') == NULL)
+	lom = strrchr(str, '\\');
+	while(retval != NULL && ((str[0] == '\n' || str[0] == '\0') || (!firstLineRead && strchr(str, '\t') == NULL && lom != NULL && *(lom+1) <= '\n')))
 	{
-		strncpy(mainSrcPath, str, MAX_FULL_PATH_LEN); mainSrcPath[MAX_FULL_PATH_LEN - 1] = '\0';
-		if(mainSrcPath[strlen(mainSrcPath) - 1] == '\n')
-			mainSrcPath[strlen(mainSrcPath) - 1] = '\0';
-		if(mainSrcPath[0] != '\0' && mainSrcPath[strlen(mainSrcPath) - 1] != '\\')
-			strcat(mainSrcPath, "\\");
+		if (!(str[0] == '\n' || str[0] == '\0')) {
+			strncpy(mainSrcPath, str, MAX_FULL_PATH_LEN); mainSrcPath[MAX_FULL_PATH_LEN - 1] = '\0';
+			if(mainSrcPath[strlen(mainSrcPath) - 1] == '\n')
+				mainSrcPath[strlen(mainSrcPath) - 1] = '\0';
+			if(mainSrcPath[0] != '\0' && mainSrcPath[strlen(mainSrcPath) - 1] != '\\')
+				strcat(mainSrcPath, "\\");
+			firstLineRead = true;
+		}
 		retval = fgets(str, MAX_FULL_PATH_LEN, (FILE*)handle);
+		lom = strrchr(str, '\\');
 	}
 
 	if(retval != NULL)
 	{
-		int i, year, month, day, hour, minute, second;
+		firstLineRead = true;
+		int i, cnt, year, month, day, hour, minute, second;
 
 		i = (int)strchr(str, '\t') - (int)str;
 		// fix for nonstandard lst files (no size and date)
-//		if (i == 0) i = strlen(str);
+		if (i < 0) {i = strlen(str); if (i > 0 && str[i - 1] == '\n') i--;}
 
 		// if not directory or separator
 		// or it contains full path
@@ -204,14 +211,15 @@ again:
 		}
 		headerData->UnpSize = 0;
 		headerData->UnpSizeHigh = 0;
-		fSize = 0;
-		year = 1980; month = day = hour = minute = second = 0;
-		sscanf(str + i, "%llu\t%d.%d.%d\t%d:%d.%d", &fSize,
+		fSize = year = month = day = hour = minute = second = 0;
+		cnt = sscanf(str + i, "%llu\t%d.%d.%d\t%d:%d.%d", &fSize,
 			&year, &month, &day,
 			&hour, &minute, &second);
-		headerData->FileTime =
+		headerData->FileTime = ((cnt < 4 && !notForTC) || (notForTC && cnt < 2)) ? -1 :
 			((year - 1980) << 25) | (month << 21) | (day << 16) |
 			(hour << 11) | (minute << 5) | (second/2);
+
+		if (notForTC) if (settings.getListColumns() < cnt + 1) settings.setListColumns(cnt + 1);
 
 		if(i == 0 || str[i - 1] == '\\')
 		{
@@ -237,11 +245,13 @@ again:
 			headerData->FileName[2] == '\\')
 		{
 			if (headerData->FileName[3] == '\0') goto again; // skip c:\, x:\, etc.
-			// do not supply c:\ part (TC does not handle it properly)
-			for (i = 3; headerData->FileName[i] != '\0'; i++) {
-				headerData->FileName[i - 3] = headerData->FileName[i];
+			if (!notForTC) {
+				// do not supply c:\ part (TC does not handle it properly)
+				for (i = 3; headerData->FileName[i] != '\0'; i++) {
+					headerData->FileName[i - 3] = headerData->FileName[i];
+				}
+				headerData->FileName[i - 3] = '\0';
 			}
-			headerData->FileName[i - 3] = '\0';
 		}
 	}
 	return retval == NULL ? E_END_ARCHIVE : 0;
@@ -332,71 +342,18 @@ void FillSortedListFromFile(DirTree **sortedList, FILE* fin) {
 	if (*sortedList != NULL) delete *sortedList;
 	*sortedList = new DirTree();
 
-	char str[MAX_FULL_PATH_LEN];
-	char fName[MAX_FULL_PATH_LEN];
-	unsigned long long fSize;
-	unsigned fTime, fAttr;
-	char *retval;
 	curPath[0] = '\0';
+	mainSrcPath[0] = '\0';
+	firstLineRead = false;
+
+	tHeaderDataEx t;
 	curDestPath[0] = '\0';
-
-again:
-	retval = fgets(str, MAX_FULL_PATH_LEN, fin);
-	while(retval != NULL && strchr(str, '\t') == NULL)
-	{
-		strncpy(mainSrcPath, str, MAX_FULL_PATH_LEN); mainSrcPath[MAX_FULL_PATH_LEN - 1] = '\0';
-		if(mainSrcPath[strlen(mainSrcPath) - 1] == '\n')
-			mainSrcPath[strlen(mainSrcPath) - 1] = '\0';
-		if(mainSrcPath[0] != '\0' && mainSrcPath[strlen(mainSrcPath) - 1] != '\\')
-			strcat(mainSrcPath, "\\");
-		retval = fgets(str, MAX_FULL_PATH_LEN, fin);
+	notForTC = true;
+	settings.setListColumns(1); // listColumns will be determined from file
+	while (ReadHeaderEx(fin, &t) == 0) {
+		(*sortedList)->insert(curDestPath, t.FileName, (unsigned)t.UnpSize + _rotl64((unsigned)t.UnpSizeHigh, 32), t.FileTime, (t.FileAttr & 16) ? FILE_TYPE_DIRECTORY : FILE_TYPE_REGULAR);
 	}
-
-	if(retval != NULL)
-	{
-		int i, year, month, day, hour, minute, second;
-
-		i = (int)strchr(str, '\t') - (int)str;
-		// if not directory or separator
-		// or it contains full path
-		if(i != 0 && str[i - 1] != '\\' && !(str[1] == ':' && str[2] == '\\')) 
-		{
-			// prepend current directory
-			strcpy(fName, curPath);
-			strncat(fName, str, i);
-			fName[strlen(curPath) + i] = '\0';
-		}
-		else
-		{
-			strncpy(fName, str, i);
-			fName[i] = '\0';
-		}
-		fSize = 0;
-		year = 1980; month = day = hour = minute = second = 0;
-		sscanf(str + i, "%llu\t%d.%d.%d\t%d:%d.%d", &fSize,
-			&year, &month, &day,
-			&hour, &minute, &second);
-		fTime =
-			((year - 1980) << 25) | (month << 21) | (day << 16) |
-			(hour << 11) | (minute << 5) | (second/2);
-
-		if(i == 0 || str[i - 1] == '\\')
-		{
-			strcpy(curPath, fName);
-			if(i == 0) goto again; // separator
-			// this way the packed file size will be displayed
-			if(fSize == 0) fAttr = 16;
-		}
-		else fAttr = 0;
-		// skip c:\, x:\, etc.
-		if (fName[1] == ':' && fName[2] == '\\' && fName[3] == '\0') goto again;
-
-		(*sortedList)->insert(curDestPath, fName, fSize, fTime, fAttr);
-
-		strcpy(curFileName, fName);
-
-		goto again;
-	}
+	notForTC = false;
 }
 
 int __stdcall DeleteFiles (char *PackedFile, char *deleteList)
@@ -444,12 +401,12 @@ int DetermineFileTypeFromName(const char* fName) {
 	if(fName[strlen(fName) - 1] == '\\') return FILE_TYPE_DIRECTORY;
 
 	int fNameLen = strlen(fName);
-	for (fileTypeMapIt = fileTypeMap.begin(); fileTypeMapIt != fileTypeMap.end(); ++fileTypeMapIt) {
-		if (fNameLen >= fileTypeMapIt->first.size() &&
-			stricmp(fileTypeMapIt->first.c_str(), fName + fNameLen - fileTypeMapIt->first.size()) == 0)
+	for (settings.fileTypeMapIt = settings.fileTypeMap.begin(); settings.fileTypeMapIt != settings.fileTypeMap.end(); ++settings.fileTypeMapIt) {
+		if (fNameLen >= settings.fileTypeMapIt->first.size() &&
+			stricmp(settings.fileTypeMapIt->first.c_str(), fName + fNameLen - settings.fileTypeMapIt->first.size()) == 0)
 		{
-			which_wcx = fileTypeMapIt->second.which_wcx;
-			return fileTypeMapIt->second.fileType;
+			settings.which_wcx = settings.fileTypeMapIt->second.which_wcx;
+			return settings.fileTypeMapIt->second.fileType;
 		}
 	}
 	return FILE_TYPE_REGULAR;
@@ -457,13 +414,13 @@ int DetermineFileTypeFromName(const char* fName) {
 int DetermineFileType(const char *fName)
 {
 	int fType = DetermineFileTypeFromName(fName);
-	if (fType == FILE_TYPE_REGULAR && tryCanYouHandleThisFile) {
+	if (fType == FILE_TYPE_REGULAR && settings.getTryCanYouHandleThisFile()) {
 		// try to determine file type using wcx plugins' CanYouHandleThisFile
 
-		for (which_wcx = wcxmap.begin(); which_wcx != wcxmap.end(); ++which_wcx) {
-			if (which_wcx->second.second) {
+		for (settings.which_wcx = settings.wcxmap.begin(); settings.which_wcx != settings.wcxmap.end(); ++settings.which_wcx) {
+			if (settings.which_wcx->second.second) {
 				HMODULE hwcx = NULL;
-				if(!(hwcx = LoadLibrary(which_wcx->second.first.c_str()))) {
+				if(!(hwcx = LoadLibrary(settings.which_wcx->second.first.c_str()))) {
 					return fType;
 				}
 				fCanYouHandleThisFile pCanYouHandleThisFile = NULL;
@@ -479,222 +436,13 @@ int DetermineFileType(const char *fName)
 	}
 	return fType;
 }
-bool DetemineCanHandleThisFileCapability(const char* wcx) {
-	// lets load library and determine its functions
-	HMODULE hwcx = NULL;
-	if(!(hwcx = LoadLibrary(wcx))) {
-		return false;
-	}
-
-	fGetPackerCaps pGetPackerCaps = NULL;
-	fCanYouHandleThisFile pCanYouHandleThisFile = NULL;
-	pGetPackerCaps = (fGetPackerCaps) GetProcAddress(hwcx, "GetPackerCaps");
-	pCanYouHandleThisFile = (fCanYouHandleThisFile) GetProcAddress(hwcx, "CanYouHandleThisFile");
-
-	// missing one of needed functions
-	if(!pGetPackerCaps || !pCanYouHandleThisFile) {
-		FreeLibrary(hwcx);
-		return false;
-	}
-
-	int pc = pGetPackerCaps();
-	if ((pc & PK_CAPS_BY_CONTENT) == 0) {
-		FreeLibrary(hwcx);
-		return false;
-	}
-	FreeLibrary(hwcx);
-	return true;
-}
-void ReadIniFile() {
-	char buf[8192], *pc, ext[22];
-	ENTRY *cur;
-	ext[0] = '.';
-	FILE_TYPE_ELEM fileTypeElem;
-
-	fileTypeElem.which_wcx = wcxmap.end();
-	fileTypeElem.list_this = LIST_YES;
-	fileTypeMap.clear();
-	fileTypeElem.fileType = FILE_TYPE_ACE; fileTypeMap.insert(make_pair(".ace", fileTypeElem));
-	fileTypeElem.fileType = FILE_TYPE_ARJ; fileTypeMap.insert(make_pair(".arj", fileTypeElem));
-	fileTypeElem.fileType = FILE_TYPE_CAB; fileTypeMap.insert(make_pair(".cab", fileTypeElem));
-	fileTypeElem.fileType = FILE_TYPE_JAR; fileTypeMap.insert(make_pair(".jar", fileTypeElem));
-	fileTypeElem.fileType = FILE_TYPE_RAR; fileTypeMap.insert(make_pair(".rar", fileTypeElem));
-	fileTypeElem.fileType = FILE_TYPE_TAR; fileTypeMap.insert(make_pair(".tar", fileTypeElem));
-	fileTypeElem.fileType = FILE_TYPE_TGZ; fileTypeMap.insert(make_pair(".tgz", fileTypeElem));
-	fileTypeElem.fileType = FILE_TYPE_TBZ; fileTypeMap.insert(make_pair(".tbz", fileTypeElem));
-	fileTypeElem.fileType = FILE_TYPE_TBZ; fileTypeMap.insert(make_pair(".tbz2", fileTypeElem));
-	fileTypeElem.fileType = FILE_TYPE_ZIP; fileTypeMap.insert(make_pair(".zip", fileTypeElem));
-	fileTypeElem.fileType = FILE_TYPE_ISO; fileTypeMap.insert(make_pair(".iso", fileTypeElem));
-	fileTypeElem.fileType = FILE_TYPE_ISO; fileTypeMap.insert(make_pair(".nrg", fileTypeElem));
-	fileTypeElem.fileType = FILE_TYPE_ISO; fileTypeMap.insert(make_pair(".bin", fileTypeElem));
-	fileTypeElem.fileType = FILE_TYPE_ISO; fileTypeMap.insert(make_pair(".img", fileTypeElem));
-	fileTypeElem.fileType = FILE_TYPE_TGZ; fileTypeMap.insert(make_pair(".tar.gz", fileTypeElem));
-	fileTypeElem.fileType = FILE_TYPE_TBZ; fileTypeMap.insert(make_pair(".tar.bz", fileTypeElem));
-	fileTypeElem.fileType = FILE_TYPE_TBZ; fileTypeMap.insert(make_pair(".tar.bz2", fileTypeElem));
-
-	wcxmap.clear();
-	string wincmd_ini_loc = get_wincmd_ini_location();
-	CIniFile wincmd_ini;
-	if (wincmd_ini.OpenIniFile(wincmd_ini_loc.c_str()) != NULL) {
-		cur = wincmd_ini.FindSection("PackerPlugins");
-		while (cur != NULL) {
-			cur = cur->pNext;
-			if (cur == NULL || cur->Type == tpSECTION) break;
-			if (cur->Type == tpKEYVALUE) {
-				ext[1] = '\0';
-				strncpy(buf, cur->pText, 8192);
-				pc = strtok(buf, "=");
-				if (pc != NULL) {
-					strncpy(ext + 1, buf, 20);
-					pc = strtok(NULL, ",");
-					if (pc != NULL) {
-						pc = strtok(NULL, "\n");
-						if (pc != NULL) {
-						} else ext[1] = '\0';
-					} else ext[1] = '\0';
-				}
-				if (ext[1] != '\0') {
-					wcxmap.insert(make_pair(ext, make_pair(pc, false)));
-				}
-			}
-		}
-		wincmd_ini.CloseIniFile();
-		for (which_wcx = wcxmap.begin(); which_wcx != wcxmap.end(); ++which_wcx) {
-			fileTypeElem.fileType = FILE_TYPE_BY_WCX;
-			fileTypeElem.which_wcx = which_wcx;
-			fileTypeMap.insert(make_pair(which_wcx->first, fileTypeElem));
-		}
-	}
-
-	tryCanYouHandleThisFile = false;
-	listEmptyFile = false;
-	equivalent_ext.clear();
-
-	CIniFile my_ini;
-	char *str;
-	if (my_ini.OpenIniFile(iniFileName) != NULL) {
-		str = (char*) my_ini.ReadString("ListingOptions", "ListEmptyArchives", "no");
-		if (strcmp(str, "yes") == 0) listEmptyFile = true;
-		else listEmptyFile = false;
-		str = (char*) my_ini.ReadString("ListingOptions", "UseCanHandleThisFileForWCXs", "no");
-		if (strcmp(str, "yes") == 0) tryCanYouHandleThisFile = true;
-		else tryCanYouHandleThisFile = false;
-
-		cur = my_ini.FindSection("EquivalentExtensions");
-		while (cur != NULL) {
-			cur = cur->pNext;
-			if (cur == NULL || cur->Type == tpSECTION) break;
-			if (cur->Type == tpKEYVALUE) {
-				ext[1] = '\0';
-				strncpy(buf, cur->pText, 8192);
-				equivalent_ext.push_back(buf);
-				pc = strtok(buf, "=");
-				if (pc != NULL) {
-					strncpy(ext + 1, buf, 21);
-					fileTypeMapIt = fileTypeMap.find(ext);
-					if (fileTypeMapIt != fileTypeMap.end()) {
-						pc = strtok(NULL, ",\n");
-						while (pc != NULL) {
-							strncpy(ext + 1, pc, 21);
-							fileTypeElem.fileType = fileTypeMapIt->second.fileType;
-							fileTypeElem.which_wcx = fileTypeMapIt->second.which_wcx;
-							fileTypeMap.insert(make_pair(ext, fileTypeElem));
-							pc = strtok(NULL, ",\n");
-						}
-					}
-				}
-			}
-		}
-
-		str = (char*) my_ini.ReadString("ListingOptions", "ListAlways", "");
-		pc = strtok(str, ",");
-		while (pc != NULL) {
-			strncpy(ext + 1, pc, 21);
-			fileTypeMapIt = fileTypeMap.find(ext);
-			if (fileTypeMapIt != fileTypeMap.end()) fileTypeMapIt->second.list_this = LIST_YES;
-			pc = strtok(NULL, ",");
-		}
-		str = (char*) my_ini.ReadString("ListingOptions", "ListNever", "");
-		pc = strtok(str, ",");
-		while (pc != NULL) {
-			strncpy(ext + 1, pc, 21);
-			fileTypeMapIt = fileTypeMap.find(ext);
-			if (fileTypeMapIt != fileTypeMap.end()) fileTypeMapIt->second.list_this = LIST_NO;
-			pc = strtok(NULL, ",");
-		}
-		str = (char*) my_ini.ReadString("ListingOptions", "ListAsk", "");
-		pc = strtok(str, ",");
-		while (pc != NULL) {
-			strncpy(ext + 1, pc, 21);
-			fileTypeMapIt = fileTypeMap.find(ext);
-			if (fileTypeMapIt != fileTypeMap.end()) fileTypeMapIt->second.list_this = LIST_ASK;
-			pc = strtok(NULL, ",");
-		}
-		my_ini.CloseIniFile();
-	}
-
-	if (tryCanYouHandleThisFile) {
-		for (which_wcx = wcxmap.begin(); which_wcx != wcxmap.end(); ++which_wcx) {
-			which_wcx->second.second = DetemineCanHandleThisFileCapability(which_wcx->second.first.c_str());
-		}
-	}
-}
-bool SaveIniFile() {
-	FILE *fout = fopen(iniFileName, "wt");
-	if (fout == NULL) return false;
-	fprintf(fout, ";You can edit this file, but be aware that your comments will not be preserved\n");
-	fprintf(fout, "[ListingOptions]\n");
-	fprintf(fout, "ListAlways=");
-	bool first = true;
-	for (fileTypeMapIt = fileTypeMap.begin(); fileTypeMapIt != fileTypeMap.end(); ++fileTypeMapIt) {
-		if (fileTypeMapIt->second.list_this == LIST_YES) {
-			if (!first) fprintf(fout, ","); else first = false;
-			fprintf(fout, "%s", fileTypeMapIt->first.c_str() + 1);
-		}
-	}
-	fprintf(fout, "\n");
-	fprintf(fout, "ListNever=");
-	first = true;
-	for (fileTypeMapIt = fileTypeMap.begin(); fileTypeMapIt != fileTypeMap.end(); ++fileTypeMapIt) {
-		if (fileTypeMapIt->second.list_this == LIST_NO) {
-			if (!first) fprintf(fout, ","); else first = false;
-			fprintf(fout, "%s", fileTypeMapIt->first.c_str() + 1);
-		}
-	}
-	fprintf(fout, "\n");
-	fprintf(fout, "ListAsk=");
-	first = true;
-	for (fileTypeMapIt = fileTypeMap.begin(); fileTypeMapIt != fileTypeMap.end(); ++fileTypeMapIt) {
-		if (fileTypeMapIt->second.list_this == LIST_ASK) {
-			if (!first) fprintf(fout, ","); else first = false;
-			fprintf(fout, "%s", fileTypeMapIt->first.c_str() + 1);
-		}
-	}
-	fprintf(fout, "\n");
-	fprintf(fout, ";Whether to list archives that contain no files (resulting in empty directories)\n");
-	fprintf(fout, ";can be \"yes\" or \"no\"\n");
-	fprintf(fout, "ListEmptyArchives=%s\n", listEmptyFile ? "yes" : "no");
-	fprintf(fout, ";Whether to try to list files with unknown extensions by plugins (can be slow)\n");
-	fprintf(fout, ";can be \"yes\" or \"no\"\n");
-	fprintf(fout, "UseCanHandleThisFileForWCXs=%s\n", tryCanYouHandleThisFile ? "yes" : "no");
-	fprintf(fout, "\n");
-	fprintf(fout, "[EquivalentExtensions]\n");
-	fprintf(fout, ";Which extensions are equivalent to the one on the left side of '='\n");
-	fprintf(fout, ";for example: zip=war,ear,ip\n");
-	for (int i = 0; i < equivalent_ext.size(); i++) {
-		fprintf(fout, "%s\n", equivalent_ext[i].c_str());
-	}
-
-	fclose(fout);
-	return true;
-}
 
 LIST_OPTION_ENUM GetFileListType(const char *fName) {
 	int i;
 	for (i = 0; fName[i] != '\0'; i++) {
 		if (fName[i] == '.') {
-			fileTypeMapIt = fileTypeMap.find(fName+i);
-			if (fileTypeMapIt != fileTypeMap.end()) return fileTypeMapIt->second.list_this;
+			settings.fileTypeMapIt = settings.fileTypeMap.find(fName+i);
+			if (settings.fileTypeMapIt != settings.fileTypeMap.end()) return settings.fileTypeMapIt->second.list_this;
 		}
 	}
 	return LIST_YES;
@@ -704,9 +452,9 @@ void SetFileListType(const char *fName, LIST_OPTION_ENUM list_this) {
 	int i;
 	for (i = 0; fName[i] != '\0'; i++) {
 		if (fName[i] == '.') {
-			fileTypeMapIt = fileTypeMap.find(fName+i);
-			if (fileTypeMapIt != fileTypeMap.end()) {
-				fileTypeMapIt->second.list_this = list_this;
+			settings.fileTypeMapIt = settings.fileTypeMap.find(fName+i);
+			if (settings.fileTypeMapIt != settings.fileTypeMap.end()) {
+				settings.fileTypeMapIt->second.list_this = list_this;
 				return;
 			}
 		}
@@ -742,7 +490,25 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 		sortedList = new DirTree();
 	}
 
-	ReadIniFile();
+	int oldListColumns = settings.getListColumns();
+	settings.readConfig();
+	if (settings.getListColumns() != oldListColumns) {
+		char res[8192];
+		char msg[8192];
+		LoadString(dllInstance, IDS_LIST_COLUMNS_QUERY, res, 8192);
+		sprintf_s(msg, res, settings.getListColumns(), oldListColumns, oldListColumns);
+		LoadString(dllInstance, IDS_LIST_COLUMNS_TITLE, res, 8192);
+		switch (MessageBox(NULL, msg, res, MB_ICONQUESTION | MB_YESNOCANCEL | MB_TASKMODAL)) {
+			case IDYES:
+				settings.setListColumns(oldListColumns);
+			break;
+			case IDNO:
+				// listColumns already are what user wants
+			break;
+			default:
+				return E_EABORTED;
+		}
+	}
 
 	curPath[0] = '\0';
 	curDestPath[0] = '\0';
@@ -816,11 +582,11 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
-				if ((j = ListByWCX(which_wcx->second.first.c_str(), str)) < 0) {
+				if ((j = ListByWCX(settings.which_wcx->second.first.c_str(), str)) < 0) {
 					delete sortedList;
 					sortedList = NULL;
 					return E_EABORTED;
-				} else if (j == 0 && listEmptyFile) {
+				} else if (j == 0 && !settings.getListEmptyFile()) {
 					sortedList->doNotListAsDirLastInserted();
 				}
 			break;
@@ -834,7 +600,7 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 					delete sortedList;
 					sortedList = NULL;
 					return E_EABORTED;
-				} else if (j == 0 && listEmptyFile) {
+				} else if (j == 0 && !settings.getListEmptyFile()) {
 					sortedList->doNotListAsDirLastInserted();
 				}
 			break;
@@ -847,7 +613,7 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 					delete sortedList;
 					sortedList = NULL;
 					return E_EABORTED;
-				} else if (j == 0 && listEmptyFile) {
+				} else if (j == 0 && !settings.getListEmptyFile()) {
 					sortedList->doNotListAsDirLastInserted();
 				}
 			break;
@@ -862,7 +628,7 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 					delete sortedList;
 					sortedList = NULL;
 					return E_EABORTED;
-				} else if (j == 0 && listEmptyFile) {
+				} else if (j == 0 && !settings.getListEmptyFile()) {
 					sortedList->doNotListAsDirLastInserted();
 				}
 			break;
@@ -875,7 +641,7 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 					delete sortedList;
 					sortedList = NULL;
 					return E_EABORTED;
-				} else if (j == 0 && listEmptyFile) {
+				} else if (j == 0 && !settings.getListEmptyFile()) {
 					sortedList->doNotListAsDirLastInserted();
 				}
 			break;
@@ -888,7 +654,7 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 					delete sortedList;
 					sortedList = NULL;
 					return E_EABORTED;
-				} else if (j == 0 && listEmptyFile) {
+				} else if (j == 0 && !settings.getListEmptyFile()) {
 					sortedList->doNotListAsDirLastInserted();
 				}
 			break;
@@ -901,7 +667,7 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 					delete sortedList;
 					sortedList = NULL;
 					return E_EABORTED;
-				} else if (j == 0 && listEmptyFile) {
+				} else if (j == 0 && !settings.getListEmptyFile()) {
 					sortedList->doNotListAsDirLastInserted();
 				}
 			break;
@@ -914,9 +680,10 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 					delete sortedList;
 					sortedList = NULL;
 					return E_EABORTED;
-				} else if (j == 0 && listEmptyFile) {
+				} else if (j == 0 && !settings.getListEmptyFile()) {
 					sortedList->doNotListAsDirLastInserted();
 				}
+
 			break;
 			default:
 				sortedList->insert(
@@ -955,7 +722,7 @@ BOOL APIENTRY DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
 	{
 	case DLL_PROCESS_ATTACH:
 	case DLL_THREAD_ATTACH:
-		time_t t;
+ 		time_t t;
 		(void)time(&t);
 		struct tm *ts;
 		ts = localtime(&t);
@@ -963,13 +730,9 @@ BOOL APIENTRY DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
 			ts->tm_year + 1900, ts->tm_mon + 1, ts->tm_mday,
 			ts->tm_hour, ts->tm_min, ts->tm_sec);
 
-		// determine, where is this dll (wcx) physically placed
-		GetModuleFileName(instance, iniFileName, MAX_FULL_PATH_LEN);
-		if(strrchr(iniFileName, '\\') == NULL) iniFileName[0] = '\0';
-		else iniFileName[1+(int)strrchr(iniFileName, '\\') - (int)iniFileName] = '\0';
-		strcat(iniFileName, "DiskDirExtended.ini");
+		settings.setIniLocation(instance);
 
-		ReadIniFile();
+		settings.readConfig();
 	}
 	dllInstance = instance;
 	return TRUE;
@@ -1260,7 +1023,7 @@ int ListISO(const char* fileName)
 			OemToChar(fullPath + basePathCnt, fullPath + basePathCnt);
 
 			// > 4GB files compatible
-			sortedList->insert(curDestPath, fullPath, t.UnpSize + _rotl64(t.UnpSizeHigh, 32), t.FileTime, (t.FileAttr & 16) == 16);
+			sortedList->insert(curDestPath, fullPath, (unsigned)t.UnpSize + _rotl64((unsigned)t.UnpSizeHigh, 32), t.FileTime, (t.FileAttr & 16) == 16);
 			if (progressFunction(NULL, 0) == 0) {
 				ISO_CloseArchive(fiso);
 				return -1;
@@ -1307,9 +1070,12 @@ int ListByWCX(const char* wcx_path, const char* fileName)
 	}
 
 	char fullPath[MAX_FULL_PATH_LEN];
+	char mainSrcPathBackup[MAX_FULL_PATH_LEN];
 	int basePathCnt = ::basePathCnt;
+	int listColumnsBackup = settings.getListColumns();
 
 	strncpy(fullPath, curPath, basePathCnt); // pOpenArchive (bellow) can overwrite curPath
+	strcpy(mainSrcPathBackup, mainSrcPath); // mainSrcPath can be overwritten as well
 
 	tOpenArchiveData toa;
 	toa.ArcName = (char*)fileName;
@@ -1321,28 +1087,38 @@ int ListByWCX(const char* wcx_path, const char* fileName)
 	tHeaderDataEx tex;
 	int ret, num = 0;
 	if (pReadHeaderEx) { // for TC 7 and above
+		notForTC = true;
+
+		settings.setListColumns(1); // listColumns will be determined from file
 		while ((ret = pReadHeaderEx(fwcx, &tex)) == 0) {
 			if (pProcessFile(fwcx, PK_SKIP, NULL, NULL) == 0) {
 				fullPath[basePathCnt] = '\0';
 				strcat(fullPath, tex.FileName);
 				if((tex.FileAttr & 16) == 16 && fullPath[strlen(fullPath) - 1] != '\\')
 					strcat(fullPath, "\\");
-				UnixToWindowsDelimiter(fullPath + basePathCnt);
-				OemToChar(fullPath + basePathCnt, fullPath + basePathCnt);
+				// these two lines are not necessary (the second is even harmfull)
+				//UnixToWindowsDelimiter(fullPath + basePathCnt);
+				//OemToChar(fullPath + basePathCnt, fullPath + basePathCnt);
 
 				// > 4GB files compatible
 				sortedList->insert(curDestPath, fullPath,
-					tex.UnpSize + _rotl64(tex.UnpSizeHigh, 32),
+					(unsigned)tex.UnpSize + _rotl64((unsigned)tex.UnpSizeHigh, 32),
 					tex.FileTime, (tex.FileAttr & 16) == 16);
 				if (progressFunction(NULL, 0) == 0) {
 					fCloseArchive(fwcx);
 					FreeLibrary(hwcx);
+					strcpy(mainSrcPath, mainSrcPathBackup); // mainSrcPath can be overwritten
+					settings.setListColumns(listColumnsBackup);
+					notForTC = false;
 					return -1;
 				}
 
 				num++;
 			}
 		}
+		strcpy(mainSrcPath, mainSrcPathBackup); // mainSrcPath can be overwritten
+		settings.setListColumns(listColumnsBackup);
+		notForTC = false;
 	} else {
 		while ((ret = pReadHeader(fwcx, &t)) == 0) {
 			if (pProcessFile(fwcx, PK_SKIP, NULL, NULL) == 0) {
@@ -1350,11 +1126,12 @@ int ListByWCX(const char* wcx_path, const char* fileName)
 				strcat(fullPath, t.FileName);
 				if((t.FileAttr & 16) == 16 && fullPath[strlen(fullPath) - 1] != '\\')
 					strcat(fullPath, "\\");
-				UnixToWindowsDelimiter(fullPath + basePathCnt);
-				OemToChar(fullPath + basePathCnt, fullPath + basePathCnt);
+				// these two lines are not necessary (the second is even harmfull)
+				//UnixToWindowsDelimiter(fullPath + basePathCnt);
+				//OemToChar(fullPath + basePathCnt, fullPath + basePathCnt);
 
 				// > 4GB files incompatible
-				sortedList->insert(curDestPath, fullPath, t.UnpSize, t.FileTime, (t.FileAttr & 16) == 16);
+				sortedList->insert(curDestPath, fullPath, (unsigned)t.UnpSize, t.FileTime, (t.FileAttr & 16) == 16);
 				if (progressFunction(NULL, 0) == 0) {
 					fCloseArchive(fwcx);
 					FreeLibrary(hwcx);
@@ -1401,7 +1178,7 @@ FNFDINOTIFY(notification_function)
 			strncpy(fullPath, curPath, basePathCnt);
 			strcpy(fullPath + basePathCnt, pfdin->psz1);
 
-			sortedList->insert(curDestPath, fullPath, pfdin->cb,
+			sortedList->insert(curDestPath, fullPath, (unsigned)pfdin->cb,
 				(((unsigned)pfdin->date) << 16) | pfdin->time, fullPath[strlen(fullPath) - 1] == '\\');
 			if (progressFunction(NULL, 0) == 0) {
 				return -1;
@@ -1586,7 +1363,7 @@ BOOL CALLBACK DialogFunc(HWND hdwnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 	switch(Msg)
 	{
 		case WM_INITDIALOG:
-			ReadIniFile();
+			settings.readConfig();
 
 			HICON hiconItem;
 			HIMAGELIST hSmall;
@@ -1607,12 +1384,22 @@ BOOL CALLBACK DialogFunc(HWND hdwnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 			lvi.mask = LVIF_TEXT | LVIF_IMAGE;
 			lvi.iSubItem = 0;
 			lvi.iItem = 0;
-			for (fileTypeMapIt = fileTypeMap.begin(); fileTypeMapIt != fileTypeMap.end(); ++fileTypeMapIt) {
-				lvi.iImage = (int) fileTypeMapIt->second.list_this;
-				lvi.pszText = (LPSTR) fileTypeMapIt->first.c_str() + 1;
-				lvi.cchTextMax = fileTypeMapIt->first.size() - 1;
+			for (settings.fileTypeMapIt = settings.fileTypeMap.begin(); settings.fileTypeMapIt != settings.fileTypeMap.end(); ++settings.fileTypeMapIt) {
+				lvi.iImage = (int) settings.fileTypeMapIt->second.list_this;
+				lvi.pszText = (LPSTR) settings.fileTypeMapIt->first.c_str() + 1;
+				lvi.cchTextMax = settings.fileTypeMapIt->first.size() - 1;
 				ListView_InsertItem(hList, &lvi);
 			}
+
+			for (int i = settings.getListColumns(); i >= 1; i--) {
+				CheckDlgButton(hdwnd, IDC_RADIO1 + i - 1, BST_CHECKED);
+			}
+
+			if (settings.getZerosInMonths()) CheckDlgButton(hdwnd, IDC_CHECK1, BST_CHECKED);
+			if (settings.getZerosInDays()) CheckDlgButton(hdwnd, IDC_CHECK2, BST_CHECKED);
+			if (settings.getZerosInHours()) CheckDlgButton(hdwnd, IDC_CHECK3, BST_CHECKED);
+			if (settings.getZerosInMinutes()) CheckDlgButton(hdwnd, IDC_CHECK4, BST_CHECKED);
+			if (settings.getZerosInSeconds()) CheckDlgButton(hdwnd, IDC_CHECK5, BST_CHECKED);
 /*
 			switch (listEmptyFile) {
 				case LIST_YES: SetDlgItemText(hdwnd, IDC_EMPTY, "yes"); CheckDlgButton(hdwnd, IDC_EMPTY, BST_CHECKED); break;
@@ -1655,6 +1442,18 @@ BOOL CALLBACK DialogFunc(HWND hdwnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 						case BST_INDETERMINATE: SetDlgItemText(hdwnd, IDC_EMPTY, "ask"); break;
 					}
 					return TRUE;
+				case IDC_RADIO1:
+				case IDC_RADIO2:
+				case IDC_RADIO3:
+				case IDC_RADIO4:
+				case IDC_RADIO5:
+				case IDC_RADIO6:
+				case IDC_RADIO7:
+				case IDC_RADIO8:
+					int i;
+					for (i = IDC_RADIO1; i <= LOWORD(wParam); i++) CheckDlgButton(hdwnd, i, BST_CHECKED);
+					for (; i <= IDC_RADIO8; i++) CheckDlgButton(hdwnd, i, BST_UNCHECKED);
+					return TRUE;
 				case IDOK:
 /*
 					switch (IsDlgButtonChecked(hdwnd, IDC_EMPTY)) {
@@ -1673,15 +1472,26 @@ BOOL CALLBACK DialogFunc(HWND hdwnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 					while (lvi.iItem != -1) {
 						ListView_GetItem(hList, &lvi);
 						if (lvi.pszText != text + 1) strcpy(text + 1, lvi.pszText);
-						fileTypeMapIt = fileTypeMap.find(text);
-						if (fileTypeMapIt != fileTypeMap.end()) {
-							fileTypeMapIt->second.list_this = (LIST_OPTION_ENUM) lvi.iImage;
+						settings.fileTypeMapIt = settings.fileTypeMap.find(text);
+						if (settings.fileTypeMapIt != settings.fileTypeMap.end()) {
+							settings.fileTypeMapIt->second.list_this = (LIST_OPTION_ENUM) lvi.iImage;
 						}
 
 						lvi.iItem = ListView_GetNextItem(hList, lvi.iItem, LVNI_ALL);
 					}
-					if(!SaveIniFile()) {
-						MessageBox(hdwnd, "Unable to create ini file", NULL, MB_OK | MB_ICONERROR);
+					
+					for (i = IDC_RADIO8; i > IDC_RADIO1; i--) if (IsDlgButtonChecked(hdwnd, i) == BST_CHECKED) break;
+					settings.setListColumns(i - IDC_RADIO1 + 1);
+
+					settings.setZerosInMonths(IsDlgButtonChecked(hdwnd, IDC_CHECK1) == BST_CHECKED);
+					settings.setZerosInDays(IsDlgButtonChecked(hdwnd, IDC_CHECK2) == BST_CHECKED);
+					settings.setZerosInHours(IsDlgButtonChecked(hdwnd, IDC_CHECK3) == BST_CHECKED);
+					settings.setZerosInMinutes(IsDlgButtonChecked(hdwnd, IDC_CHECK4) == BST_CHECKED);
+					settings.setZerosInSeconds(IsDlgButtonChecked(hdwnd, IDC_CHECK5) == BST_CHECKED);
+					if(!settings.saveConfig()) {
+						char res[8192];
+						LoadString(dllInstance, IDS_ERROR_CREATE_INI, (LPSTR) res, 8192);
+						MessageBox(hdwnd, res, NULL, MB_OK | MB_ICONERROR);
 						return FALSE;
 					}
 					EndDialog(hdwnd, 0);
@@ -1689,20 +1499,11 @@ BOOL CALLBACK DialogFunc(HWND hdwnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 
 				case IDC_INFO:
 					char msg[8192];
-					sprintf(msg,
-							"For more options see:\n"
-							"%s\n\n"
-							"This plugin is free software. It uses:\n"
-							"- minizip 1.01e (c) 1998-2005 Gilles Vollant\n"
-							"    from zlib 1.2.3 (c) 1995-2004 Jean-loup Gailly and Mark Adler\n"
-							"- UniquE RAR File Library 0.4.0 (c) 2000-2002 by Christian Scheurer\n"
-							"- Cabinet SDK (c) 1993-1997 Microsoft Corporation\n"
-							"- parts from GNU tar 1.16.1 (c) 1994-2006 Free Software Foundation, Inc.\n"
-							"- libbzip2 1.0.3 (c) 1996-2005 Julian R Seward\n"
-							"- iso.wcx 1.7.3b3 (c) 2002-2006 Sergey Oblomov\n"
-							"- UPX 2.03w (c) 1996-2006 Markus Oberhumer, Laszlo Molnar & John Reiser\n"
-							"    for reducing the size of this plugin", iniFileName);
-					MessageBox(hdwnd, msg, "DiskDir Extended - Additional Information", MB_OK);
+					char res[8192];
+					LoadString(dllInstance, IDS_ADDITIONAL_INFO, (LPSTR) res, 8192);
+					sprintf_s(msg, 8192, res, settings.getIniFileName());
+					LoadString(dllInstance, IDS_ADDITIONAL_INFO_TITLE, (LPSTR) res, 8192);
+					MessageBox(hdwnd, msg, res, MB_OK);
 					return TRUE;
 
 				default:
@@ -2129,7 +1930,7 @@ int list_archive (gzFile ftar, int fType)
 		if(fullPath[strlen(fullPath) - 1] != '\\') strcat(fullPath, "\\");
 	struct tm *tm;
 	tm = localtime (&(current_stat.st_mtime));
-	sortedList->insert(curDestPath, fullPath, current_stat.st_size,
+	sortedList->insert(curDestPath, fullPath, (unsigned)current_stat.st_size,
 				((tm->tm_year + 1900 - 1980) << 25) |
 				((tm->tm_mon + 1) << 21) |
 				(tm->tm_mday << 16) |

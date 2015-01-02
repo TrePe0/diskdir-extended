@@ -29,18 +29,34 @@ LANGUAGE LANG_CZECH, SUBLANG_DEFAULT
 // Dialog
 //
 
-IDD_SETTINGS DIALOGEX 0, 0, 238, 77
+IDD_SETTINGS DIALOGEX 0, 0, 268, 161
 STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "DiskDir Extended - Settings"
 FONT 8, "MS Sans Serif", 0, 0, 0x0
 BEGIN
-    DEFPUSHBUTTON   "OK",IDOK,147,58,37,14
-    CONTROL         "",IDC_LIST_ARCHIVES,"SysListView32",LVS_LIST | LVS_SINGLESEL | LVS_SORTASCENDING | LVS_ALIGNLEFT | WS_TABSTOP,7,13,128,55,WS_EX_CLIENTEDGE
-    PUSHBUTTON      "Additional Info...",IDC_INFO,147,41,79,12,BS_FLAT
-    PUSHBUTTON      "Cancel",IDCANCEL,189,58,37,14
-    GROUPBOX        "List archives (use right-click)",IDC_STATIC,4,2,134,70,BS_CENTER
-    CONTROL         "Version 1.52\n(c) 2007 Peter Trebaticky\nBratislava (Slovakia)\npeter.trebaticky@gmail.com",IDC_STATIC,
-                    "Static",SS_LEFTNOWORDWRAP | WS_GROUP,145,4,87,35
+    DEFPUSHBUTTON   "OK",IDOK,151,137,50,17
+    CONTROL         "",IDC_LIST_ARCHIVES,"SysListView32",LVS_LIST | LVS_SINGLESEL | LVS_SORTASCENDING | LVS_ALIGNLEFT | WS_TABSTOP,7,13,134,97,WS_EX_CLIENTEDGE
+    PUSHBUTTON      "Additional Info...",IDC_INFO,151,119,109,15,BS_FLAT
+    PUSHBUTTON      "Cancel",IDCANCEL,210,137,50,17
+    GROUPBOX        "List archives (use right-click)",IDC_STATIC,4,2,141,112,BS_CENTER
+    CONTROL         "Version 1.55    (c) 2007 Peter Trebaticky\n\nBratislava (Slovakia)\npeter.trebaticky@gmail.com",IDC_STATIC,
+                    "Static",SS_LEFTNOWORDWRAP | WS_GROUP,7,120,131,33
+    GROUPBOX        "",IDC_STATIC,4,114,141,42,BS_LEFT
+    GROUPBOX        "List columns",IDC_STATIC,148,2,52,112,BS_CENTER
+    CONTROL         "name",IDC_RADIO1,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,154,13,42,10
+    CONTROL         "size",IDC_RADIO2,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,154,25,42,10
+    CONTROL         "year",IDC_RADIO3,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,154,37,42,10
+    CONTROL         "month",IDC_RADIO4,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,154,49,42,10
+    CONTROL         "day",IDC_RADIO5,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,154,62,42,10
+    CONTROL         "hours",IDC_RADIO6,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,154,75,42,10
+    CONTROL         "minutes",IDC_RADIO7,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,154,88,42,10
+    CONTROL         "seconds",IDC_RADIO8,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,154,101,42,10
+    GROUPBOX        "Leading zeros in",IDC_STATIC,204,2,60,112,BS_CENTER
+    CONTROL         "month",IDC_CHECK1,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,210,13,42,10
+    CONTROL         "day",IDC_CHECK2,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,210,25,42,10
+    CONTROL         "hours",IDC_CHECK3,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,210,37,42,10
+    CONTROL         "minutes",IDC_CHECK4,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,210,49,42,10
+    CONTROL         "seconds",IDC_CHECK5,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,210,62,42,10
 END
 
 IDD_LIST_FILE DIALOGEX 0, 0, 180, 61
@@ -96,8 +112,7 @@ GUIDELINES DESIGNINFO
 BEGIN
     IDD_SETTINGS, DIALOG
     BEGIN
-        RIGHTMARGIN, 236
-        BOTTOMMARGIN, 75
+        RIGHTMARGIN, 264
     END
 
     IDD_LIST_FILE, DIALOG
@@ -133,6 +148,25 @@ LANGUAGE LANG_SLOVAK, SUBLANG_DEFAULT
 IDI_YES                 ICON                    "yes.ico"
 IDI_NO                  ICON                    "no.ico"
 IDI_ASK                 ICON                    "ask.ico"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// String Table
+//
+
+STRINGTABLE 
+BEGIN
+    IDS_LIST_COLUMNS_QUERY  "You chose to list %d columns but this file has %d columns.\nDo you wish to keep file's number of columns (%d)?"
+    IDS_ADDITIONAL_INFO     "For more options see:\n%s\n\nThis plugin is free software. It uses:\n- minizip 1.01e (c) 1998-2005 Gilles Vollant\n    from zlib 1.2.3 (c) 1995-2004 Jean-loup Gailly and Mark Adler\n- UniquE RAR File Library 0.4.0 (c) 2000-2002 by Christian Scheurer\n- Cabinet SDK (c) 1993-1997 Microsoft Corporation\n- parts from GNU tar 1.13 (c) 1994-1999 Free Software Foundation, Inc.\n- libbzip2 1.0.3 (c) 1996-2005 Julian R Seward\n- iso.wcx 1.7.3b3 (c) 2002-2006 Sergey Oblomov\n- UPX 2.03w (c) 1996-2006 Markus Oberhumer, Laszlo Molnar & John Reiser\n    for reducing the size of this plugin\n\nAlso thanks to WildGoblin from forum.ru-board.com for help with GUI"
+    IDS_ADDITIONAL_INFO_TITLE "DiskDir Extended - Additional Information"
+END
+
+STRINGTABLE 
+BEGIN
+    IDS_ERROR_CREATE_INI    "Unable to create file DiskDirExtended.ini"
+    IDS_LIST_COLUMNS_TITLE  "DiskDir Extended - Question"
+END
+
 #endif    // Slovak resources
 /////////////////////////////////////////////////////////////////////////////
 

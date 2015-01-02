@@ -1,5 +1,6 @@
 #include "DirTreeNode.h"
 #include "defs.h"
+#include "settings.h"
 
 DirTreeNode* DirTreeNode::lastInserted = NULL;
 
@@ -49,6 +50,7 @@ bool DirTreeNode::insert(char* fName, const unsigned long long fSize, const unsi
 		this->time = fTime;
 		this->type = fType;
 		this->forced = false;
+		lastInserted = this;
 		return true;
 	}
 
@@ -154,11 +156,8 @@ void DirTreeNode::writeOut(FILE* fout, char* curPath) {
 	if (this->name[1] == ':' && this->name[2] == '\\' && this->name[3] == '\0') ; // nothing
 	else {
 		if (this->name[strlen(this->name) - 1] == '\\') fprintf(fout, "%s", curPath);
-		fprintf(fout, "%s\t%llu\t%d.%d.%d\t%d:%d.%d\n", 
-			this->name,
-			this->size,
-			year, month, day,
-			hour, minute, second);
+		fprintf(fout, settings.getLineFormat(), 
+			this->name, this->size, year, month, day, hour, minute, second);
 	}
 
 	if (firstChild != NULL) {
@@ -166,12 +165,14 @@ void DirTreeNode::writeOut(FILE* fout, char* curPath) {
 		strcat(curPath, this->name);
 		// first non directories
 		for (DirTreeNode *p = firstChild; p != NULL; p = p->getNext()) {
-			if (p->getName()[strlen(p->getName()) - 1] != '\\')
+			if (p->do_not_list_as_dir || p->getName()[strlen(p->getName()) - 1] != '\\') {
+				if (p->getName()[strlen(p->getName()) - 1] == '\\') p->getName()[strlen(p->getName()) - 1] = '\0';
 				p->writeOut(fout, curPath);
+			}
 		}
 		// now directories
 		for (DirTreeNode *p = firstChild; p != NULL; p = p->getNext()) {
-			if (p->getName()[strlen(p->getName()) - 1] == '\\')
+			if (!p->do_not_list_as_dir && p->getName()[strlen(p->getName()) - 1] == '\\')
 				p->writeOut(fout, curPath);
 		}
 		curPath[lenOrig] = '\0';
