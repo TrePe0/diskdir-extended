@@ -111,5 +111,25 @@ Changes:
               Tan Chew Keong for bug report (http://vuln.sg/)
 2009.03.10  version 1.7.6
             - fixed minor bug: on large (DVD) images opening of image may take
-              signoficant time (up to 20 minutes)
+              significant time (up to 20 minutes)
+2010.11.09  version 1.7.7 beta 1
+            - added unicode API support for TotalCommander (used in Joliet ISO extension)
+2010.11.10  version 1.7.7 beta 2
+            - fixed issue in detection utf-8 locale of file name in Joliet extension
+2010.11.18  version 1.7.7 beta 3
+            - disabled by default detection of utf-8 codepage in Unicode filenames
+              (because this is not standard and some UCS2 Japan names were detected as
+               utf-8 names :)). to enable this heuristic define environment variable
+               set ISO_WCX_ENABLE_UTF8 = 1
+            - fixed critical issue: plugin may crash on some strange images where
+              set of volume descriptors is not complete
+            - fixed major issue: some files can't be extracted from large images (~2Gb)
+2011.07.25 version 1.7.7 beta 4
+            - fixed major issue: on some multi-session images plugin may crush
+2011.10.31 version 1.7.8
+            - port to 64-bit platform
+2011.10.31 version 1.7.9
+            - fixed crash on some specific ISO images. thanks Marcin Bednarz for bug report
+
+
 

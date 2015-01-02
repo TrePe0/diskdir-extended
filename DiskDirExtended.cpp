@@ -1,6 +1,6 @@
 // (c) 2009 Peter Trebaticky
-// DiskDir Extended v1.56, plugin for Total Commander, www.ghisler.com
-// Last change: 2009/08/05
+// DiskDir Extended v1.68, plugin for Total Commander, www.ghisler.com
+// Last change: 2013/09/18
 
 #include "wcxhead.h"
 #include "defs.h"

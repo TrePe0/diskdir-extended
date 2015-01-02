@@ -102,6 +102,18 @@ typedef struct XBOXDirectoryRecord
 } XBOXDirectoryRecord;
 
 const char CDSignature[] = {'C', 'D', '0', '0', '1'};
+const char UDFBEA[] = {'B', 'E', 'A', '0', '1'};
+const char UDFNSR02[] = {'N', 'S', 'R', '0', '2'};
+const char UDFNSR03[] = {'N', 'S', 'R', '0', '3'};
+const char UDFTEA[] = {'T', 'E', 'A', '0', '1'};
+
+typedef enum
+{
+    no_udf  = 0,
+    udf_bea = 1,
+    udf_nsr = 2,
+    udf_tea = 3
+} udf_detected_stage;
 
 typedef struct PrimaryVolumeDescriptor
 {
@@ -308,44 +320,6 @@ typedef struct BootCatalog
 } BootCatalog;
 
 
-typedef struct PrimaryVolumeDescriptorEx
-{
-    union
-    {
-        PrimaryVolumeDescriptor     VolumeDescriptor;
-        XBOXPrimaryVolumeDescriptor XBOXVolumeDescriptor;
-    };
-    BootCatalog*             BootCatalog;
-    DWORD                    BootImageEntries;
-    bool                     Unicode;
-    bool                     XBOX;
-} PrimaryVolumeDescriptorEx;
-
-typedef struct Directory
-{
-    char*           FilePath;
-    char*           FileName;
-    PrimaryVolumeDescriptorEx* VolumeDescriptor;
-    union
-    {
-        DirectoryRecord     Record;
-        XBOXDirectoryRecord XBOXRecord;
-    };
-} Directory;
-
-typedef struct IsoImage
-{
-    HANDLE                   hFile;
-    PrimaryVolumeDescriptorEx* VolumeDescriptors;
-    DWORD                    DescriptorNum;
-    DWORD                    DataOffset;
-    DWORD                    HeaderSize;
-    DWORD                    RealBlockSize;
-    Directory*               DirectoryList;
-    DWORD                    DirectoryCount;
-    DWORD                    Index;
-} IsoImage;
-
 typedef struct Partition
 {
     unsigned char            boot_ind;          /* 0x80 - active */
@@ -374,6 +348,7 @@ typedef signed   short int Int16;
 typedef unsigned char      Uint8;
 typedef unsigned char      byte;
 typedef unsigned int       Uint32;
+typedef unsigned __int64   Uint64;
 typedef unsigned char      dstring;
 
 typedef struct tag
@@ -384,7 +359,7 @@ typedef struct tag
     byte    Reserved;
     Uint16  TagSerialNumber;
     Uint16  DescriptorCRC;
-    Uint16  DescriptorCGCLength;
+    Uint16  DescriptorCRCLength;
     Uint32  TagLocation;
 } tag;
 
@@ -413,10 +388,17 @@ typedef struct EntityID { /* ECMA 167 1/7.4 */
     char  IdentifierSuffix[8];
 } EntityID;
 
-typedef struct extent_ad{
+typedef struct extent_ad
+{
     Uint32 extLength;
     Uint32 extLocation;
 } extent_ad;
+
+typedef struct short_ad
+{
+    Uint32 extLength;
+    Uint32 extPosition;
+} short_ad;
 
 typedef struct lb_addr
 {
@@ -441,6 +423,28 @@ typedef struct LVInformation {
         byte     ImplementationUse[128];
 } LVInformation;
 
+typedef struct ImplementationUse
+{
+    EntityID ImplementationID;
+    Uint32   NumberOfFiles;
+    Uint32   NumberOfDirectories;
+    Uint16   MinimumUDFReadRevision;
+    Uint16   MinimumUDFWriteRevision;
+    Uint16   MaximumUDFWriteRevision;
+} ImplementationUse;
+
+typedef struct ImpUseVolumeDescriptor { /* ECMA 167 3/10.4 */
+    tag      DescriptorTag;
+    Uint32   VolumeDescriptorSequenceNumber;
+    EntityID ImplementationIdentifier;
+    union
+    {
+        byte reserved[460];
+        ImplementationUse Use;
+    };
+} ImpUseVolumeDescriptor;
+
+#if 0
 typedef struct ImpUseVolumeDescriptor { /* ECMA 167 3/10.4 */
     tag      DescriptorTag;
     Uint32   VolumeDescriptorSequenceNumber;
@@ -451,6 +455,7 @@ typedef struct ImpUseVolumeDescriptor { /* ECMA 167 3/10.4 */
         LVInformation ImplementationUse;
     };
 } ImpUseVolumeDescriptor;
+#endif
 
 typedef struct PrimaryVolumeDescriptor_UDF
 {
@@ -478,6 +483,31 @@ typedef struct PrimaryVolumeDescriptor_UDF
     byte        Reserved[22];
 } PrimaryVolumeDescriptor_UDF;
 
+/* Generic Partition Map (ECMA 167r3 3/10.7.1) */
+typedef struct PartitionMap
+{
+	Uint8 MapType;
+	Uint8 MapLength;
+	Uint8 Mapping[0];
+} PartitionMap;
+
+/* Type 1 Partition Map (ECMA 167r3 3/10.7.2) */
+typedef struct PartitionMap1
+{
+	Uint8  MapType;
+	Uint8  MapLength;
+	Uint16 VolumeSequenceNumber;
+	Uint16 PartitionNumber;
+} PartitionMap1;
+
+/* Type 2 Partition Map (ECMA 167r3 3/10.7.3) */
+typedef struct PartitionMap2
+{
+	Uint8 MapType;
+	Uint8 MapLength; 
+	Uint8 Ident[62];
+} PartitionMap2;
+
 typedef struct LogicalVolumeDescriptor { /* ECMA 167 3/10.6 */
     tag       DescriptorTag;
     Uint32    VolumeDescriptorSequenceNumber;
@@ -485,14 +515,15 @@ typedef struct LogicalVolumeDescriptor { /* ECMA 167 3/10.6 */
     dstring   LogicalVolumeIdentifier[128];
     Uint32    LogicalBlockSize;
     EntityID  DomainIdentifier;
-    byte      LogicalVolumeContentsUse[16];
+    long_ad   LogicalVolumeContentsUse; // byte      LogicalVolumeContentsUse[16];
     Uint32    MapTableLength;
     Uint32    NumberofPartitionMaps;
     EntityID  ImplementationIdentifier;
     byte      ImplementationUse[128];
     extent_ad IntegritySequenceExtent;
-    byte      PartitionMaps[];
+    PartitionMap PartitionMaps; // byte      PartitionMaps[];
 } LogicalVolumeDescriptor;
+
 
 typedef struct FileSetDescriptor { /* ECMA 167 4/14.1 */
     tag         DescriptorTag;
@@ -515,3 +546,206 @@ typedef struct FileSetDescriptor { /* ECMA 167 4/14.1 */
     long_ad     SystemStreamDirectoryICB;
     byte        Reserved[32];
 } FileSetDescriptor;
+
+typedef struct AnchorVolumeDescriptor { /* ECMA 167 3/10.2 */
+    tag       DescriptorTag;
+    extent_ad MainVolumeDescriptorSequenceExtent;
+    extent_ad ReserveVolumeDescriptorSequenceExtent;
+    byte      Reserved[480];
+} AnchorVolumeDescriptor; // this structure must be located at sector 256
+
+const int AnchorVolumeDescriptorSector = 256;
+
+typedef struct PartitionHeaderDescriptor { /* ECMA 167 4/14.3 */
+    short_ad UnallocatedSpaceTable;
+    short_ad UnallocatedSpaceBitmap;
+    short_ad PartitionIntegrityTable;
+    short_ad FreedSpaceTable;
+    short_ad FreedSpaceBitmap;
+    byte     Reserved[88];
+} PartitionHeaderDescriptor;
+
+typedef struct PartitionDescriptor { /* ECMA 167 3/10.5 */
+    tag      DescriptorTag;
+    Uint32   VolumeDescriptorSequenceNumber;
+    Uint16   PartitionFlags;
+    Uint16   PartitionNumber;
+    EntityID PartitionContents;
+    PartitionHeaderDescriptor PartitionContentsUse; // byte     PartitionContentsUse[128];
+    Uint32   AccessType;
+    Uint32   PartitionStartingLocation;
+    Uint32   PartitionLength;
+    EntityID ImplementationIdentifier;
+    byte     ImplementationUse[128];
+    byte     Reserved[156];
+} PartitionDescriptor;
+
+typedef struct LogicalVolumeIntegrityDesc { /* ECMA 167 3/10.10 */
+    tag       DescriptorTag;
+    timestamp RecordingDateAndTime;
+    Uint32    IntegrityType;
+    extent_ad NextIntegrityExtent;
+    byte      LogicalVolumeContentsUse[32];
+    Uint32    NumberOfPartitions;
+    Uint32    LengthOfImplementationUse; /* = L_IU */
+    Uint32    FreeSpaceTable[1];
+    Uint32    SizeTable[1];
+    byte      ImplementationUse[1];
+} LogicalVolumeIntegrityDesc;
+
+typedef struct UnallocatedSpaceDesc { /* ECMA 167 3/10.8 */
+    tag       DescriptorTag;
+    Uint32    VolumeDescriptorSequenceNumber;
+    Uint32    NumberofAllocationDescriptors;
+    extent_ad AllocationDescriptors[];
+} UnallocatedSpaceDesc;
+
+typedef struct icbtag { /* ECMA 167 4/14.6 */
+    Uint32  PriorRecordedNumberofDirectEntries;
+    Uint16  StrategyType;
+    byte    StrategyParameter[2];
+    Uint16  MaximumNumberofEntries;
+    byte    Reserved;
+    Uint8   FileType;
+    lb_addr ParentICBLocation;
+    Uint16  Flags;
+} icbtag;
+
+typedef struct FileEntry { /* ECMA 167 4/14.9 */
+    tag       DescriptorTag;
+    icbtag    ICBTag;
+    Uint32    Uid;
+    Uint32    Gid;
+    Uint32    Permissions;
+    Uint16    FileLinkCount;
+    Uint8     RecordFormat;
+    Uint8     RecordDisplayAttributes;
+    Uint32    RecordLength;
+    Uint64    InformationLength;
+    Uint64    LogicalBlocksRecorded;
+    timestamp AccessTime;
+    timestamp ModificationTime;
+    timestamp AttributeTime;
+    Uint32    Checkpoint;
+    long_ad   ExtendedAttributeICB;
+    EntityID  ImplementationIdentifier;
+    Uint64    UniqueID;
+    Uint32    LengthOfExtendedAttributes;
+    Uint32    LengthOfAllocationDescriptors;
+    union
+    {
+        byte      ExtendedAttributes[];
+        byte      AllocationDescriptors[];
+    };
+} FileEntry;
+
+typedef struct FileIdentifierDescriptor { /* ECMA 167 4/14.4 */
+    tag     DescriptorTag;
+    Uint16  FileVersionNumber;
+    Uint8   FileCharacteristics;
+    Uint8   LengthOfFileIdentifier;
+    long_ad ICB;
+    Uint16  LengthOfImplementationUse;
+    //ImplementationUse Use;
+    union
+    {
+        byte ImplementationUse[];
+        char FileIdentifier[];
+        byte Padding[];
+    };
+} FileIdentifierDescriptor;
+
+
+typedef struct FileSetDescriptorEx
+{
+    LogicalVolumeDescriptor* LogicalVolumeDescriptor;
+    FileSetDescriptor        FileSetDescriptor;
+} FileSetDescriptorEx;
+
+
+typedef struct UDFImage
+{
+    PrimaryVolumeDescriptor_UDF** PrimaryVolumeDescriptor_UDF;
+    LogicalVolumeDescriptor**     LogicalVolumeDescriptor;
+    PartitionDescriptor**         PartitionDescriptor;
+    FileSetDescriptorEx**         FileSetDescriptorEx;
+
+    int primary_num;
+    int logic_num;
+    int partition_desc_num;
+    int file_set_desc_num;
+} UDFImage;
+
+
+/* Tag Identifier (ECMA 167r3 3/7.2.1) */
+#define TAG_IDENT_PVD           0x0001 //
+#define TAG_IDENT_AVDP          0x0002 //
+#define TAG_IDENT_VDP           0x0003
+#define TAG_IDENT_IUVD          0x0004 //
+#define TAG_IDENT_PD            0x0005 //
+#define TAG_IDENT_LVD           0x0006 //
+#define TAG_IDENT_USD           0x0007 //
+#define TAG_IDENT_TD            0x0008
+#define TAG_IDENT_LVID          0x0009
+
+/* Tag Identifier (ECMA 167r3 4/7.2.1) */
+#define TAG_IDENT_FSD			0x0100
+#define TAG_IDENT_FID			0x0101
+#define TAG_IDENT_AED			0x0102
+#define TAG_IDENT_IE			0x0103
+#define TAG_IDENT_TE			0x0104
+#define TAG_IDENT_FE			0x0105
+#define TAG_IDENT_EAHD			0x0106
+#define TAG_IDENT_USE			0x0107
+#define TAG_IDENT_SBD			0x0108
+#define TAG_IDENT_PIE			0x0109
+#define TAG_IDENT_EFE			0x010A
+
+
+typedef struct PrimaryVolumeDescriptorEx
+{
+    union
+    {
+        PrimaryVolumeDescriptor     VolumeDescriptor;
+        XBOXPrimaryVolumeDescriptor XBOXVolumeDescriptor;
+        UDFImage                    UDFImage;
+    };
+    BootCatalog*             BootCatalog;
+    DWORD                    BootImageEntries;
+    bool                     Unicode;
+    bool                     XBOX;
+    bool                     UDF;
+} PrimaryVolumeDescriptorEx;
+
+typedef struct Directory
+{
+    char*           FilePath;
+    char*           FileName;
+    wchar_t*        wFilePath;
+    wchar_t*        wFileName;
+    PrimaryVolumeDescriptorEx* VolumeDescriptor;
+    union
+    {
+        DirectoryRecord     Record;
+        XBOXDirectoryRecord XBOXRecord;
+    };
+} Directory;
+
+typedef struct IsoImage
+{
+    HANDLE                     hFile;
+    PrimaryVolumeDescriptorEx* VolumeDescriptors;
+    DWORD                      DescriptorNum;
+    DWORD                      DataOffset;
+    DWORD                      HeaderSize;
+    DWORD                      RealBlockSize;
+    Directory*                 DirectoryList;
+    DWORD                      DirectoryCount;
+    DWORD                      Index;
+    udf_detected_stage         UdfStage;
+    DWORD                      UdfOffset;
+    DWORD                      UdfBlockSize;
+} IsoImage;
+
+
+

@@ -1,4 +1,4 @@
-DiskDir Extended 1.67 (2010-06-25) - plugin for Total Commander
+DiskDir Extended 1.68 (2013-09-18) - plugin for Total Commander
 ================
 
 The same as DiskDir - creates a list file with all selected files and directories,
@@ -20,7 +20,7 @@ the option "Search in archives".
 
 Installation (TotalCommander 6.5 and later):
 
-1. View contents of wcx_DiskDirExtended_1.67.zip within TotalCommander
+1. View contents of wcx_DiskDirExtended_1.68.zip within TotalCommander
 2. Follow instructions
 
 Installation (TotalCommander prior to 6.5):
@@ -50,7 +50,10 @@ Peter Trebaticky
 Bratislava (Slovakia)  
 mailto: peter.trebaticky@gmail.com
 
-Changelog:  
+Changelog:
+**1.68**
+  updated ISO library
+
 **1.67**
 
 * fix for TotalCommander 7.55 - in combination with some plugins could cause

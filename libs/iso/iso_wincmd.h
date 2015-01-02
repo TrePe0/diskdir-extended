@@ -9,7 +9,8 @@
 #define FA_ARCHIVE          0x20    //Archive file
 #define FA_ANY              0x3F    //Any file
 
-extern HANDLE ISO_OpenArchive( tOpenArchiveData* ArchiveData );
-extern int ISO_ReadHeaderEx( HANDLE hArcData, tHeaderDataEx* HeaderData );
-extern int ISO_ProcessFile(HANDLE hArcData);
-extern int ISO_CloseArchive( HANDLE hArcData );
+// modified by TrePe
+extern HANDLE __stdcall ISO_OpenArchive( tOpenArchiveData* ArchiveData );
+extern int __stdcall ISO_ReadHeaderEx( HANDLE hArcData, tHeaderDataEx* HeaderData );
+extern int __stdcall ISO_ProcessFile(HANDLE hArcData);
+extern int __stdcall ISO_CloseArchive( HANDLE hArcData );
