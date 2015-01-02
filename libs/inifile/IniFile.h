@@ -82,9 +82,9 @@ typedef struct
 {
    struct ENTRY *pSec;
    struct ENTRY *pKey;
-   char          KeyText [128];
-   char          ValText [128];
-   char          Comment [255];
+   char          KeyText [8192];
+   char          ValText [8192];
+   char          Comment [8192];
 } EFIND;
 
 /* Macros */
@@ -115,7 +115,7 @@ public:
 protected:
 	struct  ENTRY *m_pEntry;
 	struct  ENTRY *m_pCurEntry;
-	char    m_result [255];
+	char    m_result [8192];
 	FILE    *m_pIniFile;
 	void    AddKey     (struct ENTRY *pEntry, CCHR *pKey, CCHR *pValue);
 	BOOL    AddItem    (char Type, CCHR *pText);

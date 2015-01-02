@@ -128,7 +128,7 @@ UINT CIniFile::GetVersion (void)
 /*========================================================================*/
 BOOL CIniFile::OpenIniFile (CCHR * FileName)
 {
-	char   Str [8196];
+	char   Str [8192];
 	char   *pStr;
 	struct ENTRY *pEntry;
 
@@ -137,7 +137,7 @@ BOOL CIniFile::OpenIniFile (CCHR * FileName)
 	if (FileName == NULL)                             { return FALSE; }
 	if ((m_pIniFile = fopen (FileName, "r")) == NULL) { return FALSE; }
 
-	while (fgets (Str, 8196, m_pIniFile) != NULL)
+	while (fgets (Str, 8192, m_pIniFile) != NULL)
 	{
 		pStr = strchr (Str, '\n');
 		if (pStr != NULL) { *pStr = 0; }
@@ -161,7 +161,7 @@ BOOL CIniFile::OpenIniFile (CCHR * FileName)
 			FreeAllMem ();
 			return FALSE;
 		}
-		strcpy (pEntry->pText, Str);
+		strcpy_s (pEntry->pText,8192, Str);
 		pStr = strchr (Str,';');
 		if (pStr != NULL) { *pStr = 0; } /* Cut all comments */
 		if ( (strstr (Str, "[") > 0) && (strstr (Str, "]") > 0) ) /* Is Section */
@@ -247,15 +247,15 @@ bool CIniFile::WriteIniFile (const char *pFileName)
 void CIniFile::WriteString (CCHR *pSection, CCHR *pKey, CCHR *pValue)
 {
 	EFIND List;
-	char  Str [8196];
+	char  Str [8192];
 
 	if (ArePtrValid (pSection, pKey, pValue) == FALSE) { return; }
 	if (FindKey  (pSection, pKey, &List) == TRUE)
 	{
-		sprintf (Str, "%s=%s%s", List.KeyText, pValue, List.Comment);
+		sprintf_s (Str, 8192, "%s=%s%s", List.KeyText, pValue, List.Comment);
 		FreeMem (List.pKey->pText);
 		List.pKey->pText = (char *)malloc (strlen (Str)+1);
-		strcpy (List.pKey->pText, Str);
+		strcpy_s (List.pKey->pText, 8192, Str);
 	}
 	else
 	{
@@ -285,8 +285,8 @@ void CIniFile::WriteBool (CCHR *pSection, CCHR *pKey, bool Value)
 *========================================================================*/
 void CIniFile::WriteInt (CCHR *pSection, CCHR *pKey, int Value)
 {
-	char Val [12]; /* 32bit maximum + sign + \0 */
-	sprintf (Val, "%d", Value);
+	char Val [120]; /* 32bit maximum + sign + \0 */
+	sprintf_s (Val, 120, "%d", Value);
 	WriteString (pSection, pKey, Val);
 }
 
@@ -295,8 +295,8 @@ void CIniFile::WriteInt (CCHR *pSection, CCHR *pKey, int Value)
 *========================================================================*/
 void CIniFile::WriteDouble (CCHR *pSection, CCHR *pKey, double Value)
 {
-	char Val [32]; /* DDDDDDDDDDDDDDD+E308\0 */
-	sprintf (Val, "%1.10lE", Value);
+	char Val [320]; /* DDDDDDDDDDDDDDD+E308\0 */
+	sprintf_s (Val, 320, "%1.10lE", Value);
 	WriteString (pSection, pKey, Val);
 }
 
@@ -310,7 +310,7 @@ CCHR *CIniFile::ReadString (CCHR *pSection, CCHR *pKey, CCHR *pDefault)
 	if (ArePtrValid (pSection, pKey, pDefault) == FALSE) { return pDefault; }
 	if (FindKey  (pSection, pKey, &List) == TRUE)
 	{
-		strcpy (m_result, List.ValText);
+		strcpy_s (m_result, 8192, List.ValText);
 		return m_result;
 	}
 	return pDefault;
@@ -331,8 +331,8 @@ BOOL CIniFile::ReadBool (CCHR *pSection, CCHR *pKey, BOOL Default)
 *========================================================================*/
 int CIniFile::ReadInt (CCHR *pSection, CCHR *pKey, int Default)
 {
-	char Val [12];
-	sprintf (Val,"%d", Default);
+	char Val [120];
+	sprintf_s (Val, 120, "%d", Default);
 	return (atoi (ReadString (pSection, pKey, Val)));
 }
 
@@ -342,7 +342,7 @@ int CIniFile::ReadInt (CCHR *pSection, CCHR *pKey, int Default)
 double CIniFile::ReadDouble (CCHR *pSection, CCHR *pKey, double Default)
 {
 	double Val;
-	sprintf (m_result, "%1.10lE", Default);
+	sprintf_s (m_result, 8192, "%1.10lE", Default);
 	sscanf (ReadString (pSection, pKey, m_result), "%lE", &Val);
 	return Val;
 }
@@ -404,17 +404,17 @@ void CIniFile::FreeAllMem (void)
 
 struct ENTRY *CIniFile::FindSection (CCHR *pSection)
 {
-	char Sec  [130];
-	char iSec [130];
+	char Sec  [8192];
+	char iSec [8192];
 	struct ENTRY *pEntry;
-	sprintf (Sec, "[%s]", pSection);
+	sprintf_s (Sec, 8192, "[%s]", pSection);
 	strupr  (Sec);
 	pEntry = m_pEntry; /* Get a pointer to the first Entry */
 	while (pEntry != NULL)
 	{
 		if (pEntry->Type == tpSECTION)
 		{
-			strcpy  (iSec, pEntry->pText);
+			strcpy_s  (iSec, 8192, pEntry->pText);
 			strupr  (iSec);
 			if (strcmp (Sec, iSec) == 0)
 			{
@@ -428,9 +428,9 @@ struct ENTRY *CIniFile::FindSection (CCHR *pSection)
 
 bool CIniFile::FindKey  (CCHR *pSection, CCHR *pKey, EFIND *pList)
 {
-	char Search [8196];
-	char Found  [8196];
-	char Text   [8196];
+	char Search [8192];
+	char Found  [8192];
+	char Text   [8192];
 	char *pText;
 	struct ENTRY *pEntry;
 	pList->pSec        = NULL;
@@ -443,7 +443,7 @@ bool CIniFile::FindKey  (CCHR *pSection, CCHR *pKey, EFIND *pList)
 	pList->Comment[0] = 0;
 	pEntry = pEntry->pNext;
 	if (pEntry == NULL) { return FALSE; }
-	sprintf (Search, "%s",pKey);
+	sprintf_s (Search, 8192, "%s", pKey);
 	strupr  (Search);
 	while (pEntry != NULL)
 	{
@@ -454,25 +454,25 @@ bool CIniFile::FindKey  (CCHR *pSection, CCHR *pKey, EFIND *pList)
 		}
 		if (pEntry->Type == tpKEYVALUE)
 		{
-			strcpy (Text, pEntry->pText);
+			strcpy_s (Text, 8192, pEntry->pText);
 			pText = strchr (Text, ';');
 			if (pText != NULL)
 			{
-				strcpy (pList->Comment, pText);
+				strcpy_s (pList->Comment, 8192, pText);
 				*pText = 0;
 			}
 			pText = strchr (Text, '=');
 			if (pText != NULL)
 			{
 				*pText = 0;
-				strcpy (pList->KeyText, Text);
-				strcpy (Found, Text);
+				strcpy_s (pList->KeyText, 8192, Text);
+				strcpy_s (Found, 8192, Text);
 				*pText = '=';
 				strupr (Found);
 				/*            printf ("%s,%s\n", Search, Found); */
 				if (strcmp (Found,Search) == 0)
 				{
-				   strcpy (pList->ValText, pText+1);
+				   strcpy_s (pList->ValText, 8192, pText+1);
 				   pList->pKey = pEntry;
 				   return TRUE;
 				}
@@ -494,7 +494,7 @@ BOOL CIniFile::AddItem (char Type, CCHR *pText)
 		free (pEntry);
 		return FALSE;
 	}
-	strcpy (pEntry->pText, pText);
+	strcpy_s (pEntry->pText, 8192, pText);
 	pEntry->pNext   = NULL;
 	if (m_pCurEntry != NULL) { m_pCurEntry->pNext = pEntry; }
 	m_pCurEntry    = pEntry;
@@ -513,7 +513,7 @@ bool CIniFile::AddItemAt (struct ENTRY *pEntryAt, char Mode, CCHR *pText)
 		free (pNewEntry);
 		return FALSE;
 	}
-	strcpy (pNewEntry->pText, pText);
+	strcpy_s (pNewEntry->pText, 8192, pText);
 	if (pEntryAt->pNext == NULL) /* No following nodes. */
 	{
 		pEntryAt->pNext   = pNewEntry;
@@ -531,17 +531,17 @@ bool CIniFile::AddItemAt (struct ENTRY *pEntryAt, char Mode, CCHR *pText)
 
 bool CIniFile::AddSectionAndKey (CCHR *pSection, CCHR *pKey, CCHR *pValue)
 {
-	char Text [8196];
-	sprintf (Text, "[%s]", pSection);
+	char Text [8192];
+	sprintf_s (Text, 8192, "[%s]", pSection);
 	if (AddItem (tpSECTION, Text) == FALSE) { return FALSE; }
-	sprintf (Text, "%s=%s", pKey, pValue);
+	sprintf_s (Text, 8192, "%s=%s", pKey, pValue);
 	return AddItem (tpKEYVALUE, Text)? 1 : 0;
 }
 
 void CIniFile::AddKey (struct ENTRY *pSecEntry, CCHR *pKey, CCHR *pValue)
 {
-	char Text [8196];
-	sprintf (Text, "%s=%s", pKey, pValue);
+	char Text [8192];
+	sprintf_s (Text, 8192, "%s=%s", pKey, pValue);
 	AddItemAt (pSecEntry, tpKEYVALUE, Text);
 }
 

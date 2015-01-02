@@ -506,7 +506,7 @@ bool DetemineCanHandleThisFileCapability(const char* wcx) {
 	return true;
 }
 void ReadIniFile() {
-	char buf[8196], *pc, ext[22];
+	char buf[8192], *pc, ext[22];
 	ENTRY *cur;
 	ext[0] = '.';
 	FILE_TYPE_ELEM fileTypeElem;
@@ -542,7 +542,7 @@ void ReadIniFile() {
 			if (cur == NULL || cur->Type == tpSECTION) break;
 			if (cur->Type == tpKEYVALUE) {
 				ext[1] = '\0';
-				strncpy(buf, cur->pText, 8196);
+				strncpy(buf, cur->pText, 8192);
 				pc = strtok(buf, "=");
 				if (pc != NULL) {
 					strncpy(ext + 1, buf, 20);
@@ -586,7 +586,7 @@ void ReadIniFile() {
 			if (cur == NULL || cur->Type == tpSECTION) break;
 			if (cur->Type == tpKEYVALUE) {
 				ext[1] = '\0';
-				strncpy(buf, cur->pText, 8196);
+				strncpy(buf, cur->pText, 8192);
 				equivalent_ext.push_back(buf);
 				pc = strtok(buf, "=");
 				if (pc != NULL) {
