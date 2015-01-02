@@ -1,12 +1,16 @@
 #include "DirTreeNode.h"
 #include "defs.h"
 
+DirTreeNode* DirTreeNode::lastInserted = NULL;
+
 DirTreeNode::DirTreeNode(const char* fName, const unsigned long long fSize, const unsigned fTime, const int fType) {
 	this->name = strdup(fName);
 	this->type = fType;
 	this->size = fSize;
 	this->time = fTime;
 	this->forced = false;
+	this->do_not_list_as_dir = false;
+	lastInserted = (DirTreeNode *)this;
 	next = NULL;
 	firstChild = NULL;
 }
@@ -146,12 +150,16 @@ void DirTreeNode::writeOut(FILE* fout, char* curPath) {
 	int minute = (this->time & 0x7FF) >> 5;
 	int second = (this->time & 0x1F) * 2;
 
-	if (this->name[strlen(this->name) - 1] == '\\') fprintf(fout, "%s", curPath);
-	fprintf(fout, "%s\t%llu\t%d.%d.%d\t%d:%d.%d\n", 
-		this->name,
-		this->size,
-		year, month, day,
-		hour, minute, second);
+	// do not write c:\, g:\, etc. as directories
+	if (this->name[1] == ':' && this->name[2] == '\\' && this->name[3] == '\0') ; // nothing
+	else {
+		if (this->name[strlen(this->name) - 1] == '\\') fprintf(fout, "%s", curPath);
+		fprintf(fout, "%s\t%llu\t%d.%d.%d\t%d:%d.%d\n", 
+			this->name,
+			this->size,
+			year, month, day,
+			hour, minute, second);
+	}
 
 	if (firstChild != NULL) {
 		int lenOrig = strlen(curPath);

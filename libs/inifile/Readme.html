@@ -1,0 +1,105 @@
+<HTML>
+<HEAD>
+   <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">
+   <META HTTP-EQUIV="CONTENT-TYPE" CONTENT="text/html; charset=iso-8859-1">
+   <META NAME="GENERATOR" CONTENT="Mozilla/4.0 [en]C-DT  (Win95; I) [Netscape]">
+   <META NAME="CREATED" CONTENT="20010228;23423652">
+   <META NAME="CHANGED" CONTENT="20010301;31740">
+</HEAD>
+<BODY TEXT="#000000" BGCOLOR="#CCCCCC" LINK="#0000EE" VLINK="#551A8B" ALINK="#FF0000">
+<SPAN STYLE="background: transparent"><FONT COLOR="#0000FF"><FONT SIZE=+2>CIniFile
+C++ Class Library</SPAN></FONT></FONT>&nbsp;
+<HR>
+<H3>
+<FONT COLOR="#000099">Description</FONT></H3>
+<FONT COLOR="#000000">The CIniFile class library is a simple C++ class
+to read and write ini files like</FONT>
+<BR><FONT COLOR="#000000">the microsoft ini files. The CIniFile package
+contains both, the C++ and the</FONT>
+<BR><FONT COLOR="#000000">C version.</FONT>
+
+<P><FONT COLOR="#000000">CIniFile translates the hole ini file in a structure,
+so it works best when a set</FONT>
+<BR><FONT COLOR="#000000">of entrys (more then one) have to be read or
+write.</FONT>
+
+<P><FONT COLOR="#000000">CIniFile is writen by Carsten Breuer (<A HREF="mailto:C.Breuer@openwin.de">C.Breuer@openwin.de</A>).</FONT>
+<H3>
+<FONT COLOR="#000099">License</FONT></H3>
+LGPL (Free for private and comercial use).
+
+<P>This program is free software; you can redistribute it and/or modify
+it under
+<BR>the terms of the GNU Lesser General Public License as published by
+the
+<BR>Free Software Foundation; either version 2 of the License, or (at your
+option)
+<BR>any later version.
+
+<P>This program is distributed in the hope that it will be useful, but
+WITHOUT
+<BR>ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+<BR>or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General
+<BR>Public License for more details.
+
+<P>You should have received a copy of the GNU Lesser General Public License
+<BR>along with this program; if not, write to the Free Software Foundation,
+Inc.,
+<BR>59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+<H3>
+<FONT COLOR="#000099">Methods</FONT></H3>
+<SPAN STYLE="background: transparent"><TT><FONT COLOR="#000000"><FONT SIZE=+1>CIniFile
+(void);</SPAN></FONT></FONT></TT>
+
+<P><SPAN STYLE="background: transparent"><TT><FONT COLOR="#000000"><FONT SIZE=+1>~CIniFile
+(void);</SPAN></FONT></FONT></TT>
+
+<P><SPAN STYLE="background: transparent"><TT><FONT COLOR="#000000"><FONT SIZE=+1>UINT
+GetVersion (void);</SPAN></FONT></FONT></TT>
+
+<P><SPAN STYLE="background: transparent"><TT><FONT COLOR="#000000"><FONT SIZE=+1>BOOL
+OpenIniFile (CCHR *pFileName);</SPAN></FONT></FONT></TT>
+
+<P><SPAN STYLE="background: transparent"><TT><FONT COLOR="#000000"><FONT SIZE=+1>BOOL
+ReadBool (CCHR *pSection, CCHR *pKey, BOOL Default);</SPAN></FONT></FONT></TT>
+
+<P><SPAN STYLE="background: transparent"><TT><FONT COLOR="#000000"><FONT SIZE=+1>int
+ReadInt (CCHR *pSection, CCHR *pKey, int Default);</SPAN></FONT></FONT></TT>
+
+<P><SPAN STYLE="background: transparent"><TT><FONT COLOR="#000000"><FONT SIZE=+1>double
+ReadDouble (CCHR *pSection, CCHR *pKey, double Default);</SPAN></FONT></FONT></TT>
+
+<P><SPAN STYLE="background: transparent"><TT><FONT COLOR="#000000"><FONT SIZE=+1>CCHR
+*ReadString (CCHR *pSection, CCHR *pKey, CCHR *pDefault);</SPAN></FONT></FONT></TT>
+
+<P><SPAN STYLE="background: transparent"><TT><FONT COLOR="#000000"><FONT SIZE=+1>void
+WriteBool (CCHR *pSection, CCHR *pKey, bool Value);</SPAN></FONT></FONT></TT>
+
+<P><SPAN STYLE="background: transparent"><TT><FONT COLOR="#000000"><FONT SIZE=+1>void
+WriteInt (CCHR *pSection, CCHR *pKey, int Value);</SPAN></FONT></FONT></TT>
+
+<P><SPAN STYLE="background: transparent"><TT><FONT COLOR="#000000"><FONT SIZE=+1>void
+WriteDouble (CCHR *pSection, CCHR *pKey, double Value);</SPAN></FONT></FONT></TT>
+
+<P><SPAN STYLE="background: transparent"><TT><FONT COLOR="#000000"><FONT SIZE=+1>void
+WriteString (CCHR *pSection, CCHR *pKey, CCHR *pValue);</SPAN></FONT></FONT></TT>
+
+<P><SPAN STYLE="background: transparent"><TT><FONT COLOR="#000000"><FONT SIZE=+1>bool
+DeleteKey (CCHR *pSection, CCHR *pKey);</SPAN></FONT></FONT></TT>
+
+<P><SPAN STYLE="background: transparent"><TT><FONT COLOR="#000000"><FONT SIZE=+1>void
+CloseIniFile ();</SPAN></FONT></FONT></TT>
+
+<P><SPAN STYLE="background: transparent"><TT><FONT COLOR="#000000"><FONT SIZE=+1>bool
+WriteIniFile (CCHR *pFileName);</SPAN></FONT></FONT></TT>
+
+<P>
+<HR WIDTH="100%">
+<BR><FONT SIZE=-1>To have our freedom:&nbsp;</FONT>
+<BR><FONT SIZE=-1>THIS SITE contains only material for EDUCATIONAL PURPOSE.
+We dissociate ourself from any</FONT>
+<BR><FONT SIZE=-1>link we have set here. Every TRADEMARK ARE TRADEMARKS
+OF THE RESPECTIVE OWNER!</FONT>
+<BR><FONT SIZE=-1>This SITE IS BUILD WITH THE PURPOSE TO HELP PEOPLE.</FONT>
+</BODY>
+</HTML>

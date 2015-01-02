@@ -109,12 +109,14 @@ bool DirTree::remove(const char* fName) {
 void DirTree::writeOut(FILE* fout, char* curPath) {
 	// first non directories
 	for (DirTreeNode *p = firstLevel; p != NULL; p = p->getNext()) {
-		if (p->getName()[strlen(p->getName()) - 1] != '\\')
+		if (p->do_not_list_as_dir || p->getName()[strlen(p->getName()) - 1] != '\\') {
+			if (p->getName()[strlen(p->getName()) - 1] == '\\') p->getName()[strlen(p->getName()) - 1] = '\0';
 			p->writeOut(fout, curPath);
+		}
 	}
 	// now directories
 	for (DirTreeNode *p = firstLevel; p != NULL; p = p->getNext()) {
-		if (p->getName()[strlen(p->getName()) - 1] == '\\')
+		if (!p->do_not_list_as_dir && p->getName()[strlen(p->getName()) - 1] == '\\')
 			p->writeOut(fout, curPath);
 	}
 }

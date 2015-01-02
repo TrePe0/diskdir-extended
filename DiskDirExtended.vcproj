@@ -4,6 +4,7 @@
 	Version="8,00"
 	Name="DiskDirExtended"
 	ProjectGUID="{5C931FC7-9B48-4EC3-8B4D-790BE87028FC}"
+	RootNamespace="DiskDirExtended"
 	>
 	<Platforms>
 		<Platform
@@ -22,6 +23,7 @@
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
+			WholeProgramOptimization="0"
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
@@ -46,12 +48,13 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalOptions="/I./libs/zlib "
+				AdditionalOptions="/I./libs/zlib /D &quot;_CRT_SECURE_NO_DEPRECATE&quot;"
 				Optimization="2"
 				InlineFunctionExpansion="1"
 				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;DiskDirExtended_EXPORTS;HAVE_STRING_H;HAVE_FCNTL_H;STDC_HEADERS"
 				StringPooling="true"
 				RuntimeLibrary="0"
+				StructMemberAlignment="1"
 				EnableFunctionLevelLinking="true"
 				PrecompiledHeaderFile=".\Release/DiskDirExtended.pch"
 				AssemblerListingLocation=".\Release/"
@@ -73,7 +76,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="odbc32.lib odbccp32.lib libs/cab/lib/fdi.lib"
+				AdditionalDependencies="odbc32.lib odbccp32.lib libs/cab/lib/fdi.lib userenv.lib comctl32.lib"
 				OutputFile="Release\DiskDirExtended.wcx"
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
@@ -150,6 +153,7 @@
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
+				StructMemberAlignment="1"
 				PrecompiledHeaderFile=".\Debug/DiskDirExtended.pch"
 				AssemblerListingLocation=".\Debug/"
 				ObjectFile=".\Debug/"
@@ -171,7 +175,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="odbc32.lib odbccp32.lib libs/cab/lib/fdi.lib"
+				AdditionalDependencies="odbc32.lib odbccp32.lib libs/cab/lib/fdi.lib userenv.lib comctl32.lib"
 				OutputFile="Debug\DiskDirExtended.wcx"
 				LinkIncremental="2"
 				SuppressStartupBanner="true"
@@ -217,6 +221,10 @@
 			Filter="cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
 			>
 			<File
+				RelativePath=".\api_totalcmd.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\DirTree.cpp"
 				>
 				<FileConfiguration
@@ -261,6 +269,10 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath=".\inilocator.cpp"
+				>
+			</File>
+			<File
 				RelativePath="wcx.def"
 				>
 			</File>
@@ -269,6 +281,10 @@
 			Name="Header Files"
 			Filter="h;hpp;hxx;hm;inl"
 			>
+			<File
+				RelativePath=".\api_totalcmd.h"
+				>
+			</File>
 			<File
 				RelativePath="defs.h"
 				>
@@ -282,6 +298,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\inilocator.h"
+				>
+			</File>
+			<File
 				RelativePath="wcxhead.h"
 				>
 			</File>
@@ -290,6 +310,10 @@
 			Name="Resource Files"
 			Filter="ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe"
 			>
+			<File
+				RelativePath=".\ask.ico"
+				>
+			</File>
 			<File
 				RelativePath="DiskDirExtended.rc"
 				>
@@ -311,11 +335,19 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath=".\no.ico"
+				>
+			</File>
+			<File
 				RelativePath="resource.h"
 				>
 			</File>
 			<File
 				RelativePath="resrc1.h"
+				>
+			</File>
+			<File
+				RelativePath=".\yes.ico"
 				>
 			</File>
 		</Filter>
@@ -901,6 +933,34 @@
 						ProgramDataBaseFileName="Debug\BZ2/"
 					/>
 				</FileConfiguration>
+			</File>
+		</Filter>
+		<Filter
+			Name="ISO"
+			>
+			<File
+				RelativePath=".\libs\iso\iso.h"
+				>
+			</File>
+			<File
+				RelativePath=".\libs\iso\iso_wincmd.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\libs\iso\iso_wincmd.h"
+				>
+			</File>
+		</Filter>
+		<Filter
+			Name="CIniFile"
+			>
+			<File
+				RelativePath=".\libs\inifile\IniFile.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\libs\inifile\IniFile.h"
+				>
 			</File>
 		</Filter>
 	</Files>

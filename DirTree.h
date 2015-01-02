@@ -19,6 +19,9 @@ public:
 	bool remove(const char* fName);
 	void writeOut(FILE* fout, char* curPath);
 	void finalize(); // makes all nodes explicit, i.e. forced = false
+	void doNotListAsDirLastInserted() {
+		DirTreeNode::setDoNotListAsDirForLastInserted();
+	}
 };
 
 #endif
