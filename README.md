@@ -1,4 +1,4 @@
-DiskDir Extended 1.5 (2006-12-31) - plugin for Total Commander
+DiskDir Extended 1.51 (2007-01-02) - plugin for Total Commander
 ================
 
 The same as DiskDir - creates a list file with all selected files and directories,
@@ -20,7 +20,7 @@ the option "Search in archives".
 
 Installation (TotalCommander 6.5 and later):
 
-1. View contents of DiskDirExtended_1.5.zip within TotalCommander
+1. View contents of DiskDirExtended_1.51.zip within TotalCommander
 2. Follow instructions
 
 Installation (TotalCommander prior to 6.5):
@@ -51,6 +51,12 @@ Bratislava (Slovakia)
 mailto: peter.trebaticky@gmail.com
 
 Changelog:  
+**1.51**
+
+* update for new TC7 and above API for packer plugins, huge files (> 4GB) are
+  also displayed correctly (only in TC7 and above)
+* fixed bug from version 1.5 eventually causing infinite loop
+
 **1.5**
 
 * added support for iso (nrg, bin, img)

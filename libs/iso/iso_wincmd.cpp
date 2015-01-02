@@ -831,7 +831,8 @@ HANDLE ISO_OpenArchive( tOpenArchiveData* ArchiveData )
     return image;
 }
 
-int ISO_ReadHeader( HANDLE hArcData, tHeaderData* HeaderData )
+// modified for DiskDirExtended purposes ReadHeader -> readHeaderEx
+int ISO_ReadHeaderEx( HANDLE hArcData, tHeaderDataEx* HeaderData )
 {
     //DebugString( "ReadHeader" );
 
@@ -881,6 +882,7 @@ int ISO_ReadHeader( HANDLE hArcData, tHeaderData* HeaderData )
         HeaderData->FileAttr |= (directory->Record.FileFlags & FATTR_DIRECTORY) ? FA_DIRECTORY : 0;
         HeaderData->FileAttr |= (directory->Record.FileFlags & FATTR_HIDDEN) ? FA_HIDDEN : 0;
         HeaderData->PackSize = HeaderData->UnpSize = (int)directory->Record.DataLength;
+        HeaderData->PackSizeHigh = HeaderData->UnpSizeHigh = (int)_rotr64(directory->Record.DataLength, 32);
     }
     else
     {
@@ -888,6 +890,7 @@ int ISO_ReadHeader( HANDLE hArcData, tHeaderData* HeaderData )
         HeaderData->FileAttr |= (directory->XBOXRecord.FileFlags & XBOX_DIRECTORY) ? FA_DIRECTORY : 0;
         HeaderData->FileAttr |= (directory->XBOXRecord.FileFlags & XBOX_HIDDEN) ? FA_HIDDEN : 0;
         HeaderData->PackSize = HeaderData->UnpSize = (int)directory->XBOXRecord.DataLength;
+        HeaderData->PackSizeHigh = HeaderData->UnpSizeHigh = (int)_rotr64(directory->XBOXRecord.DataLength, 32);
     }
 
     return 0;

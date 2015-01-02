@@ -6,6 +6,7 @@
 #include <windows.h>
 
 #define MAX_FILE_NAME_LEN 260
+#define MAX_FILE_NAME_LEN_EX 1024
 #define MAX_FULL_PATH_LEN 8192
 
 /* Error codes returned to calling application */
@@ -43,6 +44,7 @@
 /* For PackFiles */
 #define PK_PACK_MOVE_FILES  1    /* Delete original after packing        */
 #define PK_PACK_SAVE_PATHS  2    /* Save path names of files             */
+#define PK_PACK_ENCRYPT     4    /* Ask user for password, then encrypt  */
 
 /* Returned by GetPackCaps */
 #define PK_CAPS_NEW         1    /* Can create new archives              */
@@ -56,6 +58,7 @@
                                  /* created with this plugin}            */
 #define PK_CAPS_HIDE       256   /* Show as normal files (hide packer    */
                                  /* icon), open with Ctrl+PgDn, not Enter*/
+#define PK_CAPS_ENCRYPT    512   /* Plugin supports PK_PACK_ENCRYPT option*/
 
 /* Flags for packing in memory */
 #define MEM_OPTIONS_WANTHEADERS 1  /* Return archive headers with packed data */
@@ -64,8 +67,7 @@
 #define MEMPACK_OK          0    /* Function call finished OK, but there is more data */
 #define MEMPACK_DONE        1    /* Function call finished OK, there is no more data  */
 
-typedef struct
-{
+typedef struct {
 	char ArcName[MAX_FILE_NAME_LEN];
 	char FileName[MAX_FILE_NAME_LEN];
 	int Flags;
@@ -83,8 +85,28 @@ typedef struct
 	int CmtState;
 } tHeaderData;
 
-typedef struct
-{
+typedef struct {
+    char ArcName[MAX_FILE_NAME_LEN_EX];
+    char FileName[MAX_FILE_NAME_LEN_EX];
+    int Flags;
+    int PackSize;
+    int PackSizeHigh;
+    int UnpSize;
+    int UnpSizeHigh;
+    int HostOS;
+    int FileCRC;
+    int FileTime;
+    int UnpVer;
+    int Method;
+    int FileAttr;
+    char* CmtBuf;
+    int CmtBufSize;
+    int CmtSize;
+    int CmtState;
+    char Reserved[1024];
+} tHeaderDataEx;
+
+typedef struct {
 	char* ArcName;
 	int OpenMode;
 	int OpenResult;
@@ -94,8 +116,7 @@ typedef struct
 	int CmtState;
 } tOpenArchiveData;
 
-typedef struct
-{
+typedef struct {
 	int size;
 	DWORD PluginInterfaceVersionLow;
 	DWORD PluginInterfaceVersionHi;

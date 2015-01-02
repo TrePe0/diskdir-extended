@@ -10,6 +10,6 @@
 #define FA_ANY              0x3F    //Any file
 
 extern HANDLE ISO_OpenArchive( tOpenArchiveData* ArchiveData );
-extern int ISO_ReadHeader( HANDLE hArcData, tHeaderData* HeaderData );
+extern int ISO_ReadHeaderEx( HANDLE hArcData, tHeaderDataEx* HeaderData );
 extern int ISO_ProcessFile(HANDLE hArcData);
 extern int ISO_CloseArchive( HANDLE hArcData );

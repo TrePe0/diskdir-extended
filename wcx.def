@@ -1,6 +1,7 @@
 EXPORTS
 	OpenArchive
 	ReadHeader
+	ReadHeaderEx
 	ProcessFile
 	CloseArchive
 	DeleteFiles

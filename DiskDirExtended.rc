@@ -39,7 +39,7 @@ BEGIN
     PUSHBUTTON      "Additional Info...",IDC_INFO,147,41,79,12,BS_FLAT
     PUSHBUTTON      "Cancel",IDCANCEL,189,58,37,14
     GROUPBOX        "List archives (use right-click)",IDC_STATIC,4,2,134,70,BS_CENTER
-    CONTROL         "Version 1.5\n(c) 2006 Peter Trebaticky\nBratislava (Slovakia)\npeter.trebaticky@gmail.com",IDC_STATIC,
+    CONTROL         "Version 1.51\n(c) 2007 Peter Trebaticky\nBratislava (Slovakia)\npeter.trebaticky@gmail.com",IDC_STATIC,
                     "Static",SS_LEFTNOWORDWRAP | WS_GROUP,145,4,87,35
 END
 

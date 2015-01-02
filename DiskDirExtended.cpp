@@ -1,6 +1,6 @@
-// (c) 2004 Peter Trebaticky
-// DiskDir Extended v1.32, plugin for Total Commander, www.ghisler.com
-// Last change: 2005/02/26
+// (c) 2007 Peter Trebaticky
+// DiskDir Extended v1.51, plugin for Total Commander, www.ghisler.com
+// Last change: 2007/01/02
 
 #include "wcxhead.h"
 #include "defs.h"
@@ -113,14 +113,14 @@ again:
 		if(i != 0 && str[i - 1] != '\\' && !(str[1] == ':' && str[2] == '\\')) 
 		{
 			// prepend current directory
-			strcpy(headerData->FileName, curPath);
-			strncat(headerData->FileName, str, i);
-			headerData->FileName[strlen(curPath) + i] = '\0';
+			strcpy_s(headerData->FileName, MAX_FILE_NAME_LEN, curPath);
+			strncat_s(headerData->FileName, MAX_FILE_NAME_LEN, str, i);
+			headerData->FileName[min(strlen(curPath) + i, MAX_FILE_NAME_LEN - 1)] = '\0';
 		}
 		else
 		{
-			strncpy(headerData->FileName, str, i);
-			headerData->FileName[i] = '\0';
+			strncpy_s(headerData->FileName, MAX_FILE_NAME_LEN, str, i);
+			headerData->FileName[min(i, MAX_FILE_NAME_LEN - 1)] = '\0';
 		}
 		headerData->UnpSize = 0;
 		year = 1980; month = day = hour = minute = second = 0;
@@ -146,6 +146,91 @@ again:
 		headerData->CmtState = 0;
 		headerData->FileCRC = 0;
 		headerData->HostOS = 0;
+
+		strcpy(curFileName, headerData->FileName);
+		if (headerData->FileName[1] == ':' && 
+			headerData->FileName[2] == '\\')
+		{
+			if (headerData->FileName[3] == '\0') goto again; // skip c:\, x:\, etc.
+			// do not supply c:\ part (TC does not handle it properly)
+			for (i = 3; headerData->FileName[i] != '\0'; i++) {
+				headerData->FileName[i - 3] = headerData->FileName[i];
+			}
+			headerData->FileName[i - 3] = '\0';
+		}
+	}
+	return retval == NULL ? E_END_ARCHIVE : 0;
+}
+
+int __stdcall ReadHeaderEx (HANDLE handle, tHeaderDataEx *headerData)
+{
+	char str[MAX_FULL_PATH_LEN];
+	char *retval;
+	unsigned __int64 fSize;
+
+again:
+	retval = fgets(str, MAX_FULL_PATH_LEN, (FILE*)handle);
+	while(retval != NULL && strchr(str, '\t') == NULL)
+	{
+		strncpy(mainSrcPath, str, MAX_FULL_PATH_LEN); mainSrcPath[MAX_FULL_PATH_LEN - 1] = '\0';
+		if(mainSrcPath[strlen(mainSrcPath) - 1] == '\n')
+			mainSrcPath[strlen(mainSrcPath) - 1] = '\0';
+		if(mainSrcPath[0] != '\0' && mainSrcPath[strlen(mainSrcPath) - 1] != '\\')
+			strcat(mainSrcPath, "\\");
+		retval = fgets(str, MAX_FULL_PATH_LEN, (FILE*)handle);
+	}
+
+	if(retval != NULL)
+	{
+		int i, year, month, day, hour, minute, second;
+
+		i = (int)strchr(str, '\t') - (int)str;
+		// fix for nonstandard lst files (no size and date)
+//		if (i == 0) i = strlen(str);
+
+		// if not directory or separator
+		// or it contains full path
+		if(i != 0 && str[i - 1] != '\\' && !(str[1] == ':' && str[2] == '\\')) 
+		{
+			// prepend current directory
+			strcpy_s(headerData->FileName, MAX_FILE_NAME_LEN_EX, curPath);
+			strncat_s(headerData->FileName, MAX_FILE_NAME_LEN_EX, str, i);
+			headerData->FileName[min(strlen(curPath) + i, MAX_FILE_NAME_LEN_EX - 1)] = '\0';
+		}
+		else
+		{
+			strncpy_s(headerData->FileName, MAX_FILE_NAME_LEN_EX, str, i);
+			headerData->FileName[min(i, MAX_FILE_NAME_LEN_EX - 1)] = '\0';
+		}
+		headerData->UnpSize = 0;
+		headerData->UnpSizeHigh = 0;
+		fSize = 0;
+		year = 1980; month = day = hour = minute = second = 0;
+		sscanf(str + i, "%llu\t%d.%d.%d\t%d:%d.%d", &fSize,
+			&year, &month, &day,
+			&hour, &minute, &second);
+		headerData->FileTime =
+			((year - 1980) << 25) | (month << 21) | (day << 16) |
+			(hour << 11) | (minute << 5) | (second/2);
+
+		if(i == 0 || str[i - 1] == '\\')
+		{
+			strcpy(curPath, headerData->FileName);
+			if(i == 0) goto again; // separator
+			// this way the packed file size will be displayed
+			if(fSize == 0) headerData->FileAttr = 16;
+		}
+		else headerData->FileAttr = 0;
+
+		headerData->UnpSize = (int) fSize;
+		headerData->UnpSizeHigh = (int) _rotr64(fSize, 32);
+		headerData->CmtBuf = NULL;
+		headerData->CmtBufSize = 0;
+		headerData->CmtSize = 0;
+		headerData->CmtState = 0;
+		headerData->FileCRC = 0;
+		headerData->HostOS = 0;
+		memset(headerData->Reserved, 0, 1024);
 
 		strcpy(curFileName, headerData->FileName);
 		if (headerData->FileName[1] == ':' && 
@@ -632,10 +717,10 @@ BOOL CALLBACK DialogFunc2(HWND hdwnd, UINT Msg, WPARAM wParam, LPARAM lParam);
 
 int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *addList, int flags)
 {
-	int i;
+	int i, j;
 	char str[MAX_FULL_PATH_LEN];
 	char fName[MAX_FULL_PATH_LEN];
-	char fDestName[MAX_FULL_PATH_LEN];
+//	char fDestName[MAX_FULL_PATH_LEN];
 	int fType;
 	unsigned timeStamp;
 
@@ -731,11 +816,11 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
-				if ((i = ListByWCX(which_wcx->second.first.c_str(), str)) < 0) {
+				if ((j = ListByWCX(which_wcx->second.first.c_str(), str)) < 0) {
 					delete sortedList;
 					sortedList = NULL;
 					return E_EABORTED;
-				} else if (i == 0 && listEmptyFile) {
+				} else if (j == 0 && listEmptyFile) {
 					sortedList->doNotListAsDirLastInserted();
 				}
 			break;
@@ -745,11 +830,11 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
-				if ((i = ListZIP(str)) < 0) {
+				if ((j = ListZIP(str)) < 0) {
 					delete sortedList;
 					sortedList = NULL;
 					return E_EABORTED;
-				} else if (i == 0 && listEmptyFile) {
+				} else if (j == 0 && listEmptyFile) {
 					sortedList->doNotListAsDirLastInserted();
 				}
 			break;
@@ -758,11 +843,11 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
-				if ((i = ListRAR(str)) < 0) {
+				if ((j = ListRAR(str)) < 0) {
 					delete sortedList;
 					sortedList = NULL;
 					return E_EABORTED;
-				} else if (i == 0 && listEmptyFile) {
+				} else if (j == 0 && listEmptyFile) {
 					sortedList->doNotListAsDirLastInserted();
 				}
 			break;
@@ -773,11 +858,11 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
-				if ((i = ListTAR(str, fType)) < 0) {
+				if ((j = ListTAR(str, fType)) < 0) {
 					delete sortedList;
 					sortedList = NULL;
 					return E_EABORTED;
-				} else if (i == 0 && listEmptyFile) {
+				} else if (j == 0 && listEmptyFile) {
 					sortedList->doNotListAsDirLastInserted();
 				}
 			break;
@@ -786,11 +871,11 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
-				if ((i = ListARJ(str)) < 0) {
+				if ((j = ListARJ(str)) < 0) {
 					delete sortedList;
 					sortedList = NULL;
 					return E_EABORTED;
-				} else if (i == 0 && listEmptyFile) {
+				} else if (j == 0 && listEmptyFile) {
 					sortedList->doNotListAsDirLastInserted();
 				}
 			break;
@@ -799,11 +884,11 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
-				if ((i = ListACE(str)) < 0) {
+				if ((j = ListACE(str)) < 0) {
 					delete sortedList;
 					sortedList = NULL;
 					return E_EABORTED;
-				} else if (i == 0 && listEmptyFile) {
+				} else if (j == 0 && listEmptyFile) {
 					sortedList->doNotListAsDirLastInserted();
 				}
 			break;
@@ -812,11 +897,11 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
-				if ((i = ListCAB(str)) < 0) {
+				if ((j = ListCAB(str)) < 0) {
 					delete sortedList;
 					sortedList = NULL;
 					return E_EABORTED;
-				} else if (i == 0 && listEmptyFile) {
+				} else if (j == 0 && listEmptyFile) {
 					sortedList->doNotListAsDirLastInserted();
 				}
 			break;
@@ -825,11 +910,11 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
-				if ((i = ListISO(str)) < 0) {
+				if ((j = ListISO(str)) < 0) {
 					delete sortedList;
 					sortedList = NULL;
 					return E_EABORTED;
-				} else if (i == 0 && listEmptyFile) {
+				} else if (j == 0 && listEmptyFile) {
 					sortedList->doNotListAsDirLastInserted();
 				}
 			break;
@@ -1151,8 +1236,6 @@ int ListARJ(const char* fileName)
 // or -1 if interrupted by user
 int ListISO(const char* fileName)
 {
-//				FILE*f=fopen("d:\\aaa.txt", "wt");
-
 	int num = 0;
 	HANDLE fiso;
 	tOpenArchiveData toa;
@@ -1165,11 +1248,10 @@ int ListISO(const char* fileName)
 
 	strncpy(fullPath, curPath, basePathCnt);
 
-	tHeaderData t;
+	tHeaderDataEx t;
 	int ret;
-	while ((ret = ISO_ReadHeader(fiso, &t)) == 0) {
+	while ((ret = ISO_ReadHeaderEx(fiso, &t)) == 0) {
 		if (ISO_ProcessFile(fiso) == 0) {
-//			fprintf(f, "listIso: %s (%d)\n", t.FileName, t.FileAttr);
 			fullPath[basePathCnt] = '\0';
 			strcat(fullPath, t.FileName);
 			if((t.FileAttr & 16) == 16 && fullPath[strlen(fullPath) - 1] != '\\')
@@ -1177,8 +1259,8 @@ int ListISO(const char* fileName)
 			UnixToWindowsDelimiter(fullPath + basePathCnt);
 			OemToChar(fullPath + basePathCnt, fullPath + basePathCnt);
 
-			// > 4GB files incompatible
-			sortedList->insert(curDestPath, fullPath, t.UnpSize, t.FileTime, (t.FileAttr & 16) == 16);
+			// > 4GB files compatible
+			sortedList->insert(curDestPath, fullPath, t.UnpSize + _rotl64(t.UnpSizeHigh, 32), t.FileTime, (t.FileAttr & 16) == 16);
 			if (progressFunction(NULL, 0) == 0) {
 				ISO_CloseArchive(fiso);
 				return -1;
@@ -1188,7 +1270,6 @@ int ListISO(const char* fileName)
 		}
 	}
 
-//				fclose(f);
 	ISO_CloseArchive(fiso);
 
 	return num;
@@ -1209,11 +1290,13 @@ int ListByWCX(const char* wcx_path, const char* fileName)
     }
 	static fOpenArchive pOpenArchive = NULL;
 	static fReadHeader pReadHeader = NULL;
+	static fReadHeaderEx pReadHeaderEx = NULL;
 	static fProcessFile pProcessFile = NULL;
 	static fCloseArchive pCloseArchive = NULL;
 
 	pOpenArchive = (fOpenArchive) GetProcAddress(hwcx, "OpenArchive");
-    pReadHeader = (fReadHeader) GetProcAddress(hwcx, "ReadHeader");
+    pReadHeaderEx = (fReadHeaderEx) GetProcAddress(hwcx, "ReadHeaderEx");
+	pReadHeader = (fReadHeader) GetProcAddress(hwcx, "ReadHeader");
     pProcessFile = (fProcessFile) GetProcAddress(hwcx, "ProcessFile");
     pCloseArchive = (fCloseArchive) GetProcAddress(hwcx, "CloseArchive");
 
@@ -1226,7 +1309,7 @@ int ListByWCX(const char* wcx_path, const char* fileName)
 	char fullPath[MAX_FULL_PATH_LEN];
 	int basePathCnt = ::basePathCnt;
 
-	strncpy(fullPath, curPath, basePathCnt); // pOpenArchive (nizsie) moze pokazit curPath
+	strncpy(fullPath, curPath, basePathCnt); // pOpenArchive (bellow) can overwrite curPath
 
 	tOpenArchiveData toa;
 	toa.ArcName = (char*)fileName;
@@ -1235,30 +1318,54 @@ int ListByWCX(const char* wcx_path, const char* fileName)
 	if (fwcx == 0) return 0;
 
 	tHeaderData t;
+	tHeaderDataEx tex;
 	int ret, num = 0;
-	while ((ret = pReadHeader(fwcx, &t)) == 0) {
-		if (pProcessFile(fwcx, PK_SKIP, NULL, NULL) == 0) {
-//			fprintf(f, "listIso: %s (%d)\n", t.FileName, t.FileAttr);
-			fullPath[basePathCnt] = '\0';
-			strcat(fullPath, t.FileName);
-			if((t.FileAttr & 16) == 16 && fullPath[strlen(fullPath) - 1] != '\\')
-				strcat(fullPath, "\\");
-			UnixToWindowsDelimiter(fullPath + basePathCnt);
-			OemToChar(fullPath + basePathCnt, fullPath + basePathCnt);
+	if (pReadHeaderEx) { // for TC 7 and above
+		while ((ret = pReadHeaderEx(fwcx, &tex)) == 0) {
+			if (pProcessFile(fwcx, PK_SKIP, NULL, NULL) == 0) {
+				fullPath[basePathCnt] = '\0';
+				strcat(fullPath, tex.FileName);
+				if((tex.FileAttr & 16) == 16 && fullPath[strlen(fullPath) - 1] != '\\')
+					strcat(fullPath, "\\");
+				UnixToWindowsDelimiter(fullPath + basePathCnt);
+				OemToChar(fullPath + basePathCnt, fullPath + basePathCnt);
 
-			// > 4GB files incompatible
-			sortedList->insert(curDestPath, fullPath, t.UnpSize, t.FileTime, (t.FileAttr & 16) == 16);
-			if (progressFunction(NULL, 0) == 0) {
-				fCloseArchive(fwcx);
-				FreeLibrary(hwcx);
-				return -1;
+				// > 4GB files compatible
+				sortedList->insert(curDestPath, fullPath,
+					tex.UnpSize + _rotl64(tex.UnpSizeHigh, 32),
+					tex.FileTime, (tex.FileAttr & 16) == 16);
+				if (progressFunction(NULL, 0) == 0) {
+					fCloseArchive(fwcx);
+					FreeLibrary(hwcx);
+					return -1;
+				}
+
+				num++;
 			}
+		}
+	} else {
+		while ((ret = pReadHeader(fwcx, &t)) == 0) {
+			if (pProcessFile(fwcx, PK_SKIP, NULL, NULL) == 0) {
+				fullPath[basePathCnt] = '\0';
+				strcat(fullPath, t.FileName);
+				if((t.FileAttr & 16) == 16 && fullPath[strlen(fullPath) - 1] != '\\')
+					strcat(fullPath, "\\");
+				UnixToWindowsDelimiter(fullPath + basePathCnt);
+				OemToChar(fullPath + basePathCnt, fullPath + basePathCnt);
 
-			num++;
+				// > 4GB files incompatible
+				sortedList->insert(curDestPath, fullPath, t.UnpSize, t.FileTime, (t.FileAttr & 16) == 16);
+				if (progressFunction(NULL, 0) == 0) {
+					fCloseArchive(fwcx);
+					FreeLibrary(hwcx);
+					return -1;
+				}
+
+				num++;
+			}
 		}
 	}
 
-//				fclose(f);
 	pCloseArchive(fwcx);
 	FreeLibrary(hwcx);
 
@@ -1590,7 +1697,7 @@ BOOL CALLBACK DialogFunc(HWND hdwnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 							"    from zlib 1.2.3 (c) 1995-2004 Jean-loup Gailly and Mark Adler\n"
 							"- UniquE RAR File Library 0.4.0 (c) 2000-2002 by Christian Scheurer\n"
 							"- Cabinet SDK (c) 1993-1997 Microsoft Corporation\n"
-							"- parts from GNU tar 1.13 (c) 1994-1999 Free Software Foundation, Inc.\n"
+							"- parts from GNU tar 1.16.1 (c) 1994-2006 Free Software Foundation, Inc.\n"
 							"- libbzip2 1.0.3 (c) 1996-2005 Julian R Seward\n"
 							"- iso.wcx 1.7.3b3 (c) 2002-2006 Sergey Oblomov\n"
 							"- UPX 2.03w (c) 1996-2006 Markus Oberhumer, Laszlo Molnar & John Reiser\n"
