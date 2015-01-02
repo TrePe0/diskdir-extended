@@ -323,8 +323,8 @@ typedef struct PrimaryVolumeDescriptorEx
 
 typedef struct Directory
 {
-    char            FilePath[MAX_PATH * 2];
-    char            FileName[MAX_PATH];
+    char*           FilePath;
+    char*           FileName;
     PrimaryVolumeDescriptorEx* VolumeDescriptor;
     union
     {
@@ -367,3 +367,151 @@ typedef struct MBR
     unsigned short           Signature;
 } MBR;
 
+
+// ************************************ UDF structures **************************
+typedef unsigned short int Uint16;
+typedef signed   short int Int16;
+typedef unsigned char      Uint8;
+typedef unsigned char      byte;
+typedef unsigned int       Uint32;
+typedef unsigned char      dstring;
+
+typedef struct tag
+{
+    Uint16  TagIdentifier;
+    Uint16  DescriptionVersion;
+    Uint8   TagChecksum;
+    byte    Reserved;
+    Uint16  TagSerialNumber;
+    Uint16  DescriptorCRC;
+    Uint16  DescriptorCGCLength;
+    Uint32  TagLocation;
+} tag;
+
+typedef struct charspec
+{
+    Uint8   CharacterSetType;
+    byte    SharacterSetInfo[63]; // should be “OSTA Compressed Unicode”
+} charspec;
+
+typedef struct timestamp { /* ECMA 167 1/7.3 */
+    Uint16 TypeAndTimezone;
+    Int16  Year;
+    Uint8  Month;
+    Uint8  Day;
+    Uint8  Hour;
+    Uint8  Minute;
+    Uint8  Second;
+    Uint8  Centiseconds;
+    Uint8  HundredsofMicroseconds;
+    Uint8  Microseconds;
+} timestamp;
+
+typedef struct EntityID { /* ECMA 167 1/7.4 */
+    Uint8 Flags;
+    char  Identifier[23];
+    char  IdentifierSuffix[8];
+} EntityID;
+
+typedef struct extent_ad{
+    Uint32 extLength;
+    Uint32 extLocation;
+} extent_ad;
+
+typedef struct lb_addr
+{
+    Uint32 logicalBlockNum;
+    Uint16 partitionReferenceNum;
+} lb_addr;
+
+typedef struct long_ad
+{
+    Uint32  extLength;
+    lb_addr extLocation;
+    Uint8   impUse[6];
+} long_ad;
+
+typedef struct LVInformation {
+        charspec LVICharset;
+        dstring  LogicalVolumeIdentifier[128];
+        dstring  LVInfo1[36];
+        dstring  LVInfo2[36];
+        dstring  LVInfo3[36];
+        EntityID ImplementationID;
+        byte     ImplementationUse[128];
+} LVInformation;
+
+typedef struct ImpUseVolumeDescriptor { /* ECMA 167 3/10.4 */
+    tag      DescriptorTag;
+    Uint32   VolumeDescriptorSequenceNumber;
+    EntityID ImplementationIdentifier;
+    union
+    {
+        byte          reserved[460];
+        LVInformation ImplementationUse;
+    };
+} ImpUseVolumeDescriptor;
+
+typedef struct PrimaryVolumeDescriptor_UDF
+{
+    tag         DescriptorTag;
+    Uint32      VolumeDescriptorSequenceNumber;
+    Uint32      PrimaryVolumeDescriptorNumber;
+    dstring     VolumeIdentifier[32];
+    Uint16      VolumeSequenceNumber;
+    Uint16      MaximumVolumeSequenceNumber;
+    Uint16      InterchangeLevel;
+    Uint16      MaximumInterchangeLevel;
+    Uint32      CharacterSetList;
+    Uint32      MaximumCharacterSetList;
+    dstring     VolumeSetIdentifier[128];
+    charspec    DescriptorCharacterSet;
+    charspec    ExplanatoryCharacterSet;
+    extent_ad   VolumeAbstract;
+    extent_ad   VolumeCopyrightNotice;
+    EntityID    ApplicationIdentifier;
+    timestamp   RecordingDateandTime;
+    EntityID    ImplementationIdentifier;
+    byte        ImplementationUse[64];
+    Uint32      PredecessorVolumeDescriptorSequenceLocation;
+    Uint16      Flags;
+    byte        Reserved[22];
+} PrimaryVolumeDescriptor_UDF;
+
+typedef struct LogicalVolumeDescriptor { /* ECMA 167 3/10.6 */
+    tag       DescriptorTag;
+    Uint32    VolumeDescriptorSequenceNumber;
+    charspec  DescriptorCharacterSet;
+    dstring   LogicalVolumeIdentifier[128];
+    Uint32    LogicalBlockSize;
+    EntityID  DomainIdentifier;
+    byte      LogicalVolumeContentsUse[16];
+    Uint32    MapTableLength;
+    Uint32    NumberofPartitionMaps;
+    EntityID  ImplementationIdentifier;
+    byte      ImplementationUse[128];
+    extent_ad IntegritySequenceExtent;
+    byte      PartitionMaps[];
+} LogicalVolumeDescriptor;
+
+typedef struct FileSetDescriptor { /* ECMA 167 4/14.1 */
+    tag         DescriptorTag;
+    timestamp   RecordingDateandTime;
+    Uint16      InterchangeLevel;
+    Uint16      MaximumInterchangeLevel;
+    Uint32      CharacterSetList;
+    Uint32      MaximumCharacterSetList;
+    Uint32      FileSetNumber;
+    Uint32      FileSetDescriptorNumber;
+    charspec    LogicalVolumeIdentifierCharacterSet;
+    dstring     LogicalVolumeIdentifier[128];
+    charspec    FileSetCharacterSet;
+    dstring     FileSetIdentifier[32];
+    dstring     CopyrightFileIdentifier[32];
+    dstring     AbstractFileIdentifier[32];
+    long_ad     RootDirectoryICB;
+    EntityID    DomainIdentifier;
+    long_ad     NextExtent;
+    long_ad     SystemStreamDirectoryICB;
+    byte        Reserved[32];
+} FileSetDescriptor;

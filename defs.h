@@ -32,7 +32,7 @@ enum LIST_OPTION_ENUM {
 
 struct FILE_TYPE_ELEM {
 	FILE_TYPE_ENUM fileType;
-	std::map <std::string, std::pair<std::string, bool> >::iterator which_wcx;
+	std::map <std::string, std::pair<std::string, char> >::iterator which_wcx;
 	LIST_OPTION_ENUM list_this;
 };
 

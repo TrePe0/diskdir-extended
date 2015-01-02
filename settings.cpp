@@ -186,12 +186,13 @@ void Settings::readConfig() {
 
 		my_ini.CloseIniFile();
 	}
+}
 
-	if (tryCanYouHandleThisFile) {
-		for (which_wcx = wcxmap.begin(); which_wcx != wcxmap.end(); ++which_wcx) {
-			which_wcx->second.second = DetermineCanHandleThisFileCapability(which_wcx->second.first.c_str());
-		}
+bool Settings::getCanYouHandleThisFile(map <string, pair<string, char> >::iterator it) {
+	if (it->second.second == 0) {
+		it->second.second = 2 - DetermineCanHandleThisFileCapability(it->second.first.c_str());
 	}
+	return it->second.second == 1;
 }
 
 bool Settings::saveConfig() {

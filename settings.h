@@ -35,8 +35,8 @@ class Settings {
 	bool DetermineCanHandleThisFileCapability(const char*);
 
 public:
-	map <string, pair<string, bool> > wcxmap; // mapping extension -> (wcx, can use CanYouHandleThisFile)
-	map <string, pair<string, bool> >::iterator which_wcx; // iterator for wcxmap
+	map <string, pair<string, char> > wcxmap; // mapping extension -> (wcx, can use CanYouHandleThisFile - 0 not determined, 1 can, 2 cannot)
+	map <string, pair<string, char> >::iterator which_wcx; // iterator for wcxmap
 	map <string, FILE_TYPE_ELEM> fileTypeMap;
 	map <string, FILE_TYPE_ELEM>::iterator fileTypeMapIt;
 	set <string> wcxHandleableSet;
@@ -72,6 +72,7 @@ public:
 	const char* getIniFileName() {return iniFileName;}
 
 	const bool getTryCanYouHandleThisFile() {return tryCanYouHandleThisFile;}
+	bool getCanYouHandleThisFile(map <string, pair<string, char> >::iterator);
 	const bool getListArchives() {return listArchives;}
 	const bool getListEmptyFile() {return listEmptyFile;}
 	const bool getListOnlyDirectories() {return listOnlyDirectories;}

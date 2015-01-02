@@ -449,7 +449,7 @@ int DetermineFileType(const char *fName)
 		// try to determine file type using wcx plugins' CanYouHandleThisFile
 
 		for (settings.which_wcx = settings.wcxmap.begin(); settings.which_wcx != settings.wcxmap.end(); ++settings.which_wcx) {
-			if (settings.which_wcx->second.second) {
+			if (settings.getCanYouHandleThisFile(settings.which_wcx)) {
 				HMODULE hwcx = NULL;
 				if(!(hwcx = LoadLibrary(settings.which_wcx->second.first.c_str()))) {
 					return fType;
@@ -771,7 +771,6 @@ BOOL APIENTRY DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
 	switch(reason)
 	{
 	case DLL_PROCESS_ATTACH:
-	case DLL_THREAD_ATTACH:
  		time_t t;
 		(void)time(&t);
 		struct tm *ts;
@@ -783,8 +782,9 @@ BOOL APIENTRY DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
 		settings.setIniLocation(instance);
 
 		settings.readConfig();
+
+		dllInstance = instance;
 	}
-	dllInstance = instance;
 	return TRUE;
 }
 

@@ -6,8 +6,16 @@
 #include "iso_wincmd.h"
 #include "iso.h"
 
+#if defined DEBUG
+#define DebugString(x) OutputDebugString( __STR__(__LINE__)": " ),OutputDebugString( x ),OutputDebugString( "\n" )
+#define __STR2__(x) #x
+#define __STR__(x) __STR2__(x)
+//#define assert( x ) if( !(x) ) DebugString( "Assertion "#x" in line "__STR__(__LINE__) )
+#define assert( x ) if( !(x) ) MessageBox( 0, "Assertion "#x" in line "__STR__(__LINE__), "Assert", 0 )
+#else
 #define DebugString(x)
 #define assert( x )
+#endif
 
 #ifdef ZeroMemory
 #undef ZeroMemory
@@ -18,6 +26,7 @@
 
 static HANDLE heap = 0;
 
+#ifndef DEBUG
 static void* malloc( size_t size )
 {
     assert( heap );
@@ -50,6 +59,79 @@ static void* realloc( void* block, size_t size )
         return 0;
 }
 
+#else
+static void* malloc( DWORD size )
+{
+    assert( heap );
+
+    char* ptr = (char*)HeapAlloc( heap, HEAP_ZERO_MEMORY, size + 12 );
+    assert( ptr );
+    if( !ptr )
+        return 0;
+    *(DWORD*)ptr = 0x12345678;
+    *(DWORD*)(ptr + 4) = size;
+    *(DWORD*)(ptr + size + 8) = 0x12345678;
+
+    return ptr + 8;
+}
+
+void free( void* block )
+{
+    assert( heap );
+    if( block )
+    {
+        // check for boundary error
+        char* ptr = (char*)block;
+        if( *(DWORD*)(ptr - 8) != 0x12345678 )
+            DebugString( "error before pointer" );
+        DWORD size = *(DWORD*)(ptr - 4);
+        if( *(DWORD*)(ptr + size) != 0x12345678 )
+            DebugString( "error after pointer" );
+
+        HeapFree( heap, 0, ptr - 8 );
+    }
+    return;
+}
+
+static void* realloc( void* block, size_t size )
+{
+    assert( heap );
+
+    if( block && !size )
+    {
+        free( block );
+        return 0;
+    }
+    else if( block && size )
+    {
+        char* p1 = (char*)block;
+        char* p2 = (char*)malloc( size );
+        DWORD s1 = *(DWORD*)(p1 - 4);
+        DWORD s2 = size;
+        for( DWORD i = 0; i < min( s1, s2 ); i++ )
+            p2[i] = p1[i];
+        free( p1 );
+        return p2;
+    }
+    else if( !block && size )
+        return malloc( size );
+    else // !block && !size
+        return 0;
+}
+
+#endif //debug
+
+/*
+static char* lstrchr( char* str, int chr )
+{
+    assert( str );
+    for( int i = 0; str[i]; i++ )
+        if( str[i] == chr )
+            return str + i;
+    return 0;
+}
+*/
+
 static char* lstrrchr( char* str, int chr )
 {
     assert( str );
@@ -58,6 +140,26 @@ static char* lstrrchr( char* str, int chr )
             return str + i;
     return 0;
 }
+
+/*
+static char* lstrstr( const char* str1, const char* str2 )
+{
+    assert( str1 && str2 );
+
+    int l1 = lstrlen( str1 );
+    int l2 = lstrlen( str2 );
+    for( int i = 0; i < l1 - l2; i++ )
+    {
+        int j;
+        for( j = 0; j < l2; j++ )
+           if( str1[i + j] != str2[j] )
+               break;
+        if( j >= l2 )
+            return (char*)str1 + i;
+    }
+    return 0;
+}
+*/
 
 static int lmemfind( const char* ptr1, int len1, const char* ptr2, int len2 )
 {
@@ -107,6 +209,7 @@ static char* litoa( int num, int digits = 1 )
     return buffer + sizeof( buffer ) - max( i, digits );
 }
 
+
 #define LOWDWORD(x) (DWORD)(x)
 #define HIDWORD(x) (DWORD)((x) >> 32)
 
@@ -137,7 +240,7 @@ static LONGLONG GetBlockOffset( const IsoImage* image, DWORD block )
 static DWORD ReadBlock( const IsoImage* image, DWORD block, DWORD size, void* data )
 {
     //DebugString( "ReadBlock" );
-    assert( image && block && size && data );
+    assert( image && size && data );
 
     return ReadDataByPos( image->hFile, GetBlockOffset( image, block ), size, data );
 }
@@ -197,11 +300,14 @@ static DWORD GetVolumeDescriptor( const IsoImage* image, PrimaryVolumeDescriptor
 
     bool step1 = false;
 
+    DWORD iterations = 0;
+    DWORD max_iterations = 1024 * 1024 * 100 / image->RealBlockSize; // max 100 Mb between sessions
+    
     for( DWORD i = startblk;
-         !step1 &&
+         !step1 && iterations < max_iterations &&
          ReadBlock( image, i, sizeof( descriptor->VolumeDescriptor ),
                     &descriptor->VolumeDescriptor ) == sizeof( descriptor->VolumeDescriptor );
-         i++, step1 = sharp )
+         i++, step1 = sharp, iterations++ )
     {
         if( !lstrcmpn( (char*)descriptor->VolumeDescriptor.StandardIdentifier, CDSignature, sizeof(CDSignature)) &&
             descriptor->VolumeDescriptor.VolumeDescriptorType == 1 )
@@ -209,6 +315,7 @@ static DWORD GetVolumeDescriptor( const IsoImage* image, PrimaryVolumeDescriptor
             DWORD block = i;
             // Found it!
             DebugString("Found it");
+            iterations = 0;
             // trying to read root directory
             char* buffer = (char*)malloc( (WORD)descriptor->VolumeDescriptor.LogicalBlockSize );
             if( buffer )
@@ -265,8 +372,8 @@ static DWORD GetVolumeDescriptor( const IsoImage* image, PrimaryVolumeDescriptor
                             (short unsigned int)catalog.Validation.KeyWord == (short unsigned int)0xaa55 )
                         {
                             unsigned short sum = 0;
-                            for( int i = 0; i < sizeof( catalog.Validation ) / sizeof( catalog.Validation.Checksum ); i++ )
-                                sum = (unsigned short)(sum + *((unsigned short*)(&catalog.Validation) + i));
+                            for( int j = 0; j < sizeof( catalog.Validation ) / sizeof( catalog.Validation.Checksum ); j++ )
+                                sum = (unsigned short)(sum + *((unsigned short*)(&catalog.Validation) + j));
                             if( sum )
                             {
                                 assert( "checksum is wrong :(" );
@@ -319,6 +426,16 @@ static DWORD GetVolumeDescriptor( const IsoImage* image, PrimaryVolumeDescriptor
     return 0;
 }
 
+
+bool is_PrimaryVolumeDescriptor_UDF(char* buffer, int len)
+{
+    PrimaryVolumeDescriptor_UDF* p_desc = (PrimaryVolumeDescriptor_UDF*)buffer;
+    ImpUseVolumeDescriptor* i_desc = (ImpUseVolumeDescriptor*)buffer;
+    LogicalVolumeDescriptor* l_desc = (LogicalVolumeDescriptor*)buffer;
+    FileSetDescriptor* f_desc = (FileSetDescriptor*)buffer;
+    return false;
+}
+
 const DWORD SearchSize = 0x100000; 
 
 static IsoImage* GetImage( const char* filename )
@@ -354,7 +471,8 @@ static IsoImage* GetImage( const char* filename )
     ZeroMemory( &descriptor, sizeof( descriptor ) );
 
     // Read the VolumeDescriptor (2k) until we find it, but only up to to 1MB
-    for( ; image.DataOffset < SearchSize + sizeof( PrimaryVolumeDescriptor ); image.DataOffset += sizeof( PrimaryVolumeDescriptor ) )
+    for( ; image.DataOffset < SearchSize + sizeof( PrimaryVolumeDescriptor );
+           image.DataOffset += sizeof( PrimaryVolumeDescriptor ) )
     {
         char buffer[sizeof( PrimaryVolumeDescriptor ) + sizeof( CDSignature )];
         if( ReadDataByPos( image.hFile, 0x8000 + image.DataOffset,
@@ -365,6 +483,8 @@ static IsoImage* GetImage( const char* filename )
             CloseHandle( image.hFile );
             return 0;
         }
+
+        is_PrimaryVolumeDescriptor_UDF(buffer, sizeof(buffer));
 
         int sig_offset = lmemfind( buffer, sizeof( buffer ), CDSignature, sizeof( CDSignature ) );
         if( sig_offset >= 0 )
@@ -471,7 +591,16 @@ static bool FreeImage( IsoImage* image )
         CloseHandle( image->hFile );
 
     if( image->DirectoryList )
+    {
+        for(DWORD i = 0; i < image->DirectoryCount; i++)
+        {
+            if(image->DirectoryList[i].FileName)
+                free(image->DirectoryList[i].FileName);
+            if(image->DirectoryList[i].FilePath)
+                free(image->DirectoryList[i].FilePath);
+        }
         free( image->DirectoryList );
+    }
 
     for( DWORD i = 0; i < image->DescriptorNum && image->VolumeDescriptors; i++ )
         if( image->VolumeDescriptors[i].BootCatalog )
@@ -524,21 +653,39 @@ static bool LoadXBOXTree(IsoImage* image, PrimaryVolumeDescriptorEx* desc, const
         directory.XBOXRecord = *record;
         directory.VolumeDescriptor = desc;
 
-        lstrcpyn( directory.FileName, (char*)record->FileIdentifier,
-                  min(record->LengthOfFileIdentifier + 1, sizeof(directory.FileName)));
+		if(dirs)
+        { // if dirs == 0 - we just calculating total number of records...
+            directory.FileName = (char*)malloc((record->LengthOfFileIdentifier + 2) * sizeof(*directory.FileName));
+		    assert(directory.FileName);
+            if(!directory.FileName)
+            {
+                free(data);
+                free(stack);
+                return false;
+            }
+            lstrcpyn( directory.FileName, (char*)record->FileIdentifier, record->LengthOfFileIdentifier + 1);
+            directory.FileName[record->LengthOfFileIdentifier] = 0;
 
-        lstrcat( lstrcat( lstrcpy( directory.FilePath, path ), path[0] ? "\\" : "" ), directory.FileName );
+		    int dirlen = lstrlen(path) + 1 + lstrlen(directory.FileName) + 1;
+		    directory.FilePath = (char*)malloc(dirlen * sizeof(*directory.FilePath));
+		    assert(directory.FilePath);
+            if(!directory.FilePath)
+            {
+                free(data);
+                free(stack);
+                return false;
+            }
+            lstrcat( lstrcat( lstrcpy( directory.FilePath, path ), path[0] ? "\\" : "" ), directory.FileName );
 
-        if( dirs )
             (*dirs)[*count] = directory;
-        (*count)++;
+        }
 
+        (*count)++;
         if( directory.XBOXRecord.FileFlags & XBOX_DIRECTORY )
             if( !LoadXBOXTree( image, desc, directory.FilePath,
                                directory.XBOXRecord.LocationOfExtent, directory.XBOXRecord.DataLength,
                                dirs, count ) )
                 result = false;
-
 
         if(directory.XBOXRecord.RightSubTree) // push right ptr to stack
             stack[stackptr++] = directory.XBOXRecord.RightSubTree;
@@ -618,71 +765,103 @@ static bool LoadTree( IsoImage* image, PrimaryVolumeDescriptorEx* desc, const ch
             ((((int)sizeof( *record ) - (int)sizeof( *record->FileIdentifier ) + (int)record->LengthOfFileIdentifier) + 1) & ~1) )
             break;
 
-        if( desc->Unicode && record->LengthOfFileIdentifier > 1 && num > 1 )
-        {
-            UINT codepage = CP_UTF8;
-            int i;
-            int length = record->LengthOfFileIdentifier;
-            
-            for( i = 0; i < record->LengthOfFileIdentifier; i++ )
+        if(dirs)
+        { // if dirs == 0 - we just calculating total number of records...
+            if( desc->Unicode && record->LengthOfFileIdentifier > 1 && num > 1 )
             {
-                if( record->FileIdentifier[i] < 32 )
-                {
-                    //codepage = CP_ACP;
-                    codepage = GetACP();
-                    length = record->LengthOfFileIdentifier / 2;
-                    WCHAR* uname = (WCHAR*)record->FileIdentifier;
-                    for( i = 0; i < (record->LengthOfFileIdentifier / 2); i++ )
-                        uname[i] = (WORD)((uname[i] >> 8) + (uname[i] << 8));
-
-                    WideCharToMultiByte( codepage, 0, (WCHAR*)record->FileIdentifier, length,
-                                         directory.FileName, sizeof( directory.FileName ) - 1, 0, 0 );
-
-                    break;
-                }
-            }
-
-            if( codepage == CP_UTF8 )
-                lstrcpyn( directory.FileName, (char*)record->FileIdentifier, record->LengthOfFileIdentifier + 1 );
+                UINT codepage = CP_UTF8;
+                int i;
+                int length = record->LengthOfFileIdentifier;
             
-            if( lstrrchr( directory.FileName, ';' ) )
-                *lstrrchr( directory.FileName, ';' ) = 0;
-
-            lstrcat( lstrcat( lstrcpy( directory.FilePath, path ), (path[0]) ? "\\" : "" ), directory.FileName );
-
-            if( dirs )
-                (*dirs)[*count] = directory;
-            (*count)++;
-
-            if( directory.Record.FileFlags & FATTR_DIRECTORY )
-                /*if( !LoadTree( image, directory.FilePath, &directory.Record, dirs, count ) )
+                for( i = 0; i < record->LengthOfFileIdentifier; i++ )
                 {
-                    free( data );
+                    if( record->FileIdentifier[i] < 32 )
+                    {
+                        //codepage = CP_ACP;
+                        codepage = GetACP();
+                        length = record->LengthOfFileIdentifier / 2;
+                        WCHAR* uname = (WCHAR*)record->FileIdentifier;
+                        for( i = 0; i < (record->LengthOfFileIdentifier / 2); i++ ) // swap bytes in name
+                            uname[i] = (WORD)((uname[i] >> 8) + (uname[i] << 8));
+
+					    directory.FileName = (char*)malloc((length + 1) * sizeof(*directory.FileName));
+					    assert(directory.FileName);
+                        if(!directory.FileName)
+                        {
+                            free(data);
+                            return false;
+                        }
+
+                        WideCharToMultiByte( codepage, 0, (WCHAR*)record->FileIdentifier, length,
+                                             directory.FileName, length, 0, 0 );
+                        directory.FileName[length] = 0;
+
+                        break;
+                    }
+                }
+
+                if( codepage == CP_UTF8 )
+			    {
+				    directory.FileName = (char*)malloc((record->LengthOfFileIdentifier + 2) * sizeof(*directory.FileName));
+				    assert(directory.FileName);
+                    if(!directory.FileName)
+                    {
+                        free(data);
+                        return false;
+                    }
+                    lstrcpyn(directory.FileName, (char*)record->FileIdentifier, record->LengthOfFileIdentifier + 1);
+                    directory.FileName[record->LengthOfFileIdentifier] = 0;
+			    }
+            
+                if( lstrrchr( directory.FileName, ';' ) )
+                    *lstrrchr( directory.FileName, ';' ) = 0;
+
+			    int dirlen = lstrlen(path) + 1 + lstrlen(directory.FileName) + 1;
+			    directory.FilePath = (char*)malloc(dirlen * sizeof(*directory.FilePath));
+			    assert(directory.FilePath);
+                if(!directory.FilePath)
+                {
+                    free(data);
                     return false;
-                }*/
-                if( !LoadTree( image, desc, directory.FilePath, &directory.Record, dirs, count ) )
-                    result = false;
+                }
+                lstrcat( lstrcat( lstrcpy( directory.FilePath, path ), (path[0]) ? "\\" : "" ), directory.FileName );
+
+                (*dirs)[*count] = directory;
+            }
+            else if( !desc->Unicode && record->LengthOfFileIdentifier > 0 && num > 1 )
+            {
+			    directory.FileName = (char*)malloc((record->LengthOfFileIdentifier + 2) * sizeof(*directory.FileName));
+			    assert(directory.FileName);
+                if(!directory.FileName)
+                {
+                    free(data);
+                    return false;
+                }
+                lstrcpyn( directory.FileName, (char*)record->FileIdentifier, record->LengthOfFileIdentifier + 1);
+                directory.FileName[record->LengthOfFileIdentifier] = 0;
+
+                if( lstrrchr( directory.FileName, ';' ) )
+                    *lstrrchr( directory.FileName, ';' ) = 0;
+
+			    int dirlen = lstrlen(path) + 1 + lstrlen(directory.FileName) + 1;
+			    directory.FilePath = (char*)malloc(dirlen * sizeof(*directory.FilePath));
+			    assert(directory.FilePath);
+                if(!directory.FilePath)
+                {
+                    free(data);
+                    return false;
+                }
+                lstrcat( lstrcat( lstrcpy( directory.FilePath, path ), path[0] ? "\\" : "" ), directory.FileName );
+
+                (*dirs)[*count] = directory;
+            }
         }
-        else if( !desc->Unicode && record->LengthOfFileIdentifier > 0 && num > 1 )
+
+        if((!desc->Unicode && record->LengthOfFileIdentifier > 0 ||
+             desc->Unicode && record->LengthOfFileIdentifier > 1) && num > 1)
         {
-            lstrcpyn( directory.FileName, (char*)record->FileIdentifier,
-                      min(record->LengthOfFileIdentifier + 1, sizeof(directory.FileName)));
-
-            if( lstrrchr( directory.FileName, ';' ) )
-                *lstrrchr( directory.FileName, ';' ) = 0;
-
-            lstrcat( lstrcat( lstrcpy( directory.FilePath, path ), path[0] ? "\\" : "" ), directory.FileName );
-
-            if( dirs )
-                (*dirs)[*count] = directory;
             (*count)++;
-
             if( directory.Record.FileFlags & FATTR_DIRECTORY )
-                /*if( !LoadTree( image, directory.FilePath, &directory.Record, dirs, count ) )
-                {
-                    free( data );
-                    return false;
-                }*/
                 if( !LoadTree( image, desc, directory.FilePath, &directory.Record, dirs, count ) )
                     result = false;
         }
@@ -698,6 +877,18 @@ static bool LoadTree( IsoImage* image, PrimaryVolumeDescriptorEx* desc, const ch
             Directory* dir = (*dirs) + (*count);
             ZeroMemory( dir, sizeof( *dir ) );
             dir->VolumeDescriptor = desc;
+
+            const char* boot_images = "boot.images";
+            int len = lstrlen(path) + 1 + lstrlen(boot_images) + 1;
+            dir->FileName = (char*)malloc(len);
+            dir->FilePath = (char*)malloc(len);
+
+            if(!dir->FileName || !dir->FilePath)
+            {
+                free(data);
+                return false;
+            }
+
             if( lstrlen( path ) )
             {
                 lstrcpy( dir->FilePath, lstrcpy( dir->FileName, path ) );
@@ -705,8 +896,6 @@ static bool LoadTree( IsoImage* image, PrimaryVolumeDescriptorEx* desc, const ch
                 lstrcat( dir->FileName, "\\" );
             }
             
-            const char* boot_images = "boot.images";
-
             lstrcat( dir->FilePath, boot_images );
             lstrcat( dir->FileName, boot_images );
             dir->Record.FileFlags = FATTR_DIRECTORY | FATTR_HIDDEN;
@@ -732,28 +921,44 @@ static bool LoadTree( IsoImage* image, PrimaryVolumeDescriptorEx* desc, const ch
             const char* no_emul = "no_emul";
             const char* img = ".";
             const char* ima = ".ima";
+            const char* _1_20_ = "_1.20.";
+            const char* _1_44_ = "_1.44.";
+            const char* _2_88_ = "_2.88.";
             //const char* img = ".img";
 
             switch( BootEntry->Entry.BootMediaType )
             {
             case 0:
+                dir->FileName = (char*)malloc(lstrlen(no_emul) + lstrlen(img) + lstrlen(number) + 1);
+                assert(dir->FileName);
                 lstrcat( lstrcat( lstrcpy( dir->FileName, no_emul ), img ), number);
                 dir->Record.DataLength = BootEntry->Entry.SectorCount * 0x200;
                 break;
             case 1:
-                lstrcat( lstrcat( lstrcat( lstrcpy( dir->FileName, floppy ), "_1.20."), number ), ima );
+                dir->FileName = (char*)malloc(lstrlen(floppy) + lstrlen(_1_20_) + lstrlen(number) +
+                                              lstrlen(ima) + 1);
+                assert(dir->FileName);
+                lstrcat( lstrcat( lstrcat( lstrcpy( dir->FileName, floppy ), _1_20_), number ), ima );
                 dir->Record.DataLength = 0x50 * 0x2 * 0x0f * 0x200;
                 break;
             case 2:
-                lstrcat( lstrcat( lstrcat( lstrcpy( dir->FileName, floppy ), "_1.44."), number ), ima );
+                dir->FileName = (char*)malloc(lstrlen(floppy) + lstrlen(_1_44_) + lstrlen(number) +
+                                              lstrlen(ima) + 1);
+                assert(dir->FileName);
+                lstrcat( lstrcat( lstrcat( lstrcpy( dir->FileName, floppy ), _1_44_), number ), ima );
                 dir->Record.DataLength = 0x50 * 0x2 * 0x12 * 0x200;
                 break;
             case 3:
-                lstrcat( lstrcat( lstrcat( lstrcpy( dir->FileName, floppy ), "_2.88."), number ), ima );
+                dir->FileName = (char*)malloc(lstrlen(floppy) + lstrlen(_2_88_) + lstrlen(number) +
+                                              lstrlen(ima) + 1);
+                assert(dir->FileName);
+                lstrcat( lstrcat( lstrcat( lstrcpy( dir->FileName, floppy ), _2_88_), number ), ima );
                 dir->Record.DataLength = 0x50 * 0x2 * 0x24 * 0x200;
                 break;
             case 4:
                 {
+                    dir->FileName = (char*)malloc(lstrlen(harddisk) + lstrlen(img) + lstrlen(number) + 1);
+                    assert(dir->FileName);
                     lstrcat( lstrcat( lstrcpy( dir->FileName, harddisk ), img ), number );
                     MBR mbr;
                     if( ReadBlock( image, BootEntry->Entry.LoadRBA, 0x200, &mbr ) )
@@ -776,6 +981,10 @@ static bool LoadTree( IsoImage* image, PrimaryVolumeDescriptorEx* desc, const ch
                 dir->Record.DataLength = BootEntry->Entry.SectorCount * 0x200;
                 break;
             }
+            
+            int dirlen = lstrlen( path ) + lstrlen("\\boot.images\\") + lstrlen(dir->FileName) + 1;
+            dir->FilePath = (char*)malloc(dirlen);
+            
             if( lstrlen( path ) )
                 lstrcat( lstrcat( lstrcpy( dir->FilePath, path ), "\\boot.images\\" ), dir->FileName );
             else
@@ -826,12 +1035,12 @@ HANDLE ISO_OpenArchive( tOpenArchiveData* ArchiveData )
 {
 	heap = HeapCreate( 0, 1024 * 1024, 0 );
 
-	DebugString( "OpenArchive" );
+    DebugString( "OpenArchive" );
     IsoImage* image = GetImage( ArchiveData->ArcName );
     return image;
 }
-#include <cstdio>
-// modified for DiskDirExtended purposes ReadHeader -> readHeaderEx
+
+// modified for DiskDirExtended purposes ReadHeader -> ReadHeaderEx
 int ISO_ReadHeaderEx( HANDLE hArcData, tHeaderDataEx* HeaderData )
 {
     //DebugString( "ReadHeader" );
@@ -861,7 +1070,9 @@ int ISO_ReadHeaderEx( HANDLE hArcData, tHeaderDataEx* HeaderData )
         return E_END_ARCHIVE;
 
     Directory* directory = image->DirectoryList + image->Index;
-    lstrcpy( HeaderData->FileName, directory->FilePath );
+    lstrcpyn( HeaderData->FileName, directory->FilePath, sizeof(HeaderData->FileName) );
+    HeaderData->FileName[sizeof(HeaderData->FileName) - 1] = 0;
+    int l = lstrlen(HeaderData->FileName);
 
     if(!directory->VolumeDescriptor->XBOX)
     {
@@ -896,7 +1107,7 @@ int ISO_ReadHeaderEx( HANDLE hArcData, tHeaderDataEx* HeaderData )
     return 0;
 }
 
-int ISO_ProcessFile(HANDLE hArcData)
+int ISO_ProcessFile( HANDLE hArcData )
 {
     //DebugString( "ProcessFile" );
     if( !hArcData )
@@ -905,6 +1116,7 @@ int ISO_ProcessFile(HANDLE hArcData)
     IsoImage* image = (IsoImage*)hArcData;
 
     bool result = true;
+
     image->Index++;
     return result ? 0 : E_EWRITE;
 }
@@ -913,10 +1125,10 @@ int ISO_CloseArchive( HANDLE hArcData )
 {
     DebugString( "CloseArchive" );
     FreeImage( (IsoImage*)hArcData );
-
 	if( heap ) {
 		HeapDestroy( heap );
 		heap = 0;
 	}
-    return 0;
+ 
+	return 0;
 }

@@ -39,7 +39,7 @@ BEGIN
     PUSHBUTTON      "Additional Info...",IDC_INFO,151,119,109,15,BS_FLAT
     PUSHBUTTON      "Cancel",IDCANCEL,210,137,50,17
     GROUPBOX        "",IDC_STATIC,4,2,141,112,BS_CENTER
-    CONTROL         "Version 1.65    (c) 2009 Peter Trebaticky\n\nBratislava (Slovakia)\npeter.trebaticky@gmail.com",IDC_STATIC,
+    CONTROL         "Version 1.67    (c) 2010 Peter Trebaticky\n\nBratislava (Slovakia)\npeter.trebaticky@gmail.com",IDC_STATIC,
                     "Static",SS_LEFTNOWORDWRAP | WS_GROUP,7,120,131,33
     GROUPBOX        "",IDC_STATIC,4,114,141,42,BS_LEFT
     GROUPBOX        "List columns",IDC_STATIC,148,2,52,112,BS_CENTER
@@ -154,13 +154,52 @@ IDI_ASK                 ICON                    "ask.ico"
 
 /////////////////////////////////////////////////////////////////////////////
 //
+// Version
+//
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,6,7,0
+ PRODUCTVERSION 1,6,7,0
+ FILEFLAGSMASK 0x17L
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x4L
+ FILETYPE 0x2L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "041b04b0"
+        BEGIN
+            VALUE "CompanyName", "TrePe"
+            VALUE "FileDescription", "DiskDirExtended - plugin for TotalCommander to create list file with all selected files/dirs, also lists contents of archive files"
+            VALUE "FileVersion", "1, 6, 7, 0"
+            VALUE "InternalName", "DiskDirExtended"
+            VALUE "LegalCopyright", "(C) 2010 Peter Trebaticky"
+            VALUE "OriginalFilename", "DiskDirExtended"
+            VALUE "ProductName", "DiskDirExtended"
+            VALUE "ProductVersion", "1, 6, 7, 0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x41b, 1200
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
 // String Table
 //
 
 STRINGTABLE 
 BEGIN
     IDS_LIST_COLUMNS_QUERY  "You chose to list %d columns but this file has %d columns.\nDo you wish to keep file's number of columns (%d)?"
-    IDS_ADDITIONAL_INFO     "For more options see:\n%s\n\nThis plugin is free software. It uses:\n- minizip 1.01e (c) 1998-2005 Gilles Vollant\n    from zlib 1.2.3 (c) 1995-2004 Jean-loup Gailly and Mark Adler\n- UniquE RAR File Library 0.4.0 (c) 2000-2002 by Christian Scheurer\n- Cabinet SDK (c) 1993-1997 Microsoft Corporation\n- parts from GNU tar 1.13 (c) 1994-1999 Free Software Foundation, Inc.\n- libbzip2 1.0.5 (c) 1996-2007 Julian R Seward\n- iso.wcx 1.7.3b3 (c) 2002-2006 Sergey Oblomov\n- UPX 3.03w (c) 1996-2008 Markus Oberhumer, Laszlo Molnar & John Reiser\n    for reducing the size of this plugin\n\nAlso thanks to WildGoblin from forum.ru-board.com for help with GUI"
+    IDS_ADDITIONAL_INFO     "For more options see:\n%s\n\nThis plugin is free software. It uses:\n- minizip 1.1 (c) 1998-2010 Gilles Vollant\n    from zlib 1.2.5 (c) 1995-2010 Jean-loup Gailly and Mark Adler\n- UniquE RAR File Library 0.4.0 (c) 2000-2002 by Christian Scheurer\n- Cabinet SDK (c) 1993-1997 Microsoft Corporation\n- parts from GNU tar 1.13 (c) 1994-1999 Free Software Foundation, Inc.\n- libbzip2 1.0.5 (c) 1996-2007 Julian R Seward\n- iso.wcx 1.7.6 (c) 2002-2009 Sergey Oblomov\n- UPX 3.05w (c) 1996-2010 Markus Oberhumer, Laszlo Molnar & John Reiser\n    for reducing the size of this plugin\n\nAlso thanks to WildGoblin from forum.ru-board.com for help with GUI"
     IDS_ADDITIONAL_INFO_TITLE "DiskDir Extended - Additional Information"
 END
 

@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="windows-1250"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="8,00"
+	Version="9,00"
 	Name="DiskDirExtended"
 	ProjectGUID="{5C931FC7-9B48-4EC3-8B4D-790BE87028FC}"
 	RootNamespace="DiskDirExtended"
+	TargetFrameworkVersion="131072"
 	>
 	<Platforms>
 		<Platform
@@ -82,6 +83,8 @@
 				SuppressStartupBanner="true"
 				ModuleDefinitionFile=".\wcx.def"
 				ProgramDatabaseFile=".\Release/DiskDirExtended.pdb"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				ImportLibrary=".\Release/DiskDirExtended.lib"
 				TargetMachine="1"
 			/>
@@ -106,12 +109,9 @@
 				Name="VCAppVerifierTool"
 			/>
 			<Tool
-				Name="VCWebDeploymentTool"
-			/>
-			<Tool
 				Name="VCPostBuildEventTool"
 				Description="Compress wcx"
-				CommandLine="upx\upx.exe  --ultra-brute Release\DiskDirExtended.wcx"
+				CommandLine="upx\upx.exe  --ultra-brute --keep-resource=VS_VERSION_INFO  Release\DiskDirExtended.wcx"
 			/>
 		</Configuration>
 		<Configuration
@@ -182,6 +182,8 @@
 				ModuleDefinitionFile=".\wcx.def"
 				GenerateDebugInformation="true"
 				ProgramDatabaseFile=".\Debug/DiskDirExtended.pdb"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				ImportLibrary=".\Debug/DiskDirExtended.lib"
 				TargetMachine="1"
 			/>
@@ -204,9 +206,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -359,335 +358,127 @@
 			Name="ZIP"
 			>
 			<File
-				RelativePath="libs\zlib\adler32.c"
-				>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="libs\zlib\compress.c"
-				>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="libs\zlib\crc32.c"
-				>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="libs\zlib\crc32.h"
+				RelativePath=".\libs\zlib\adler32.c"
 				>
 			</File>
 			<File
-				RelativePath="libs\zlib\contrib\minizip\crypt.h"
+				RelativePath=".\libs\zlib\compress.c"
 				>
 			</File>
 			<File
-				RelativePath="libs\zlib\deflate.c"
-				>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="libs\zlib\deflate.h"
+				RelativePath=".\libs\zlib\crc32.c"
 				>
 			</File>
 			<File
-				RelativePath="libs\zlib\gzio.c"
-				>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="libs\zlib\infback.c"
-				>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="libs\zlib\inffast.c"
-				>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="libs\zlib\inffast.h"
+				RelativePath=".\libs\zlib\crc32.h"
 				>
 			</File>
 			<File
-				RelativePath="libs\zlib\inffixed.h"
+				RelativePath=".\libs\zlib\contrib\minizip\crypt.h"
 				>
 			</File>
 			<File
-				RelativePath="libs\zlib\inflate.c"
-				>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="libs\zlib\inflate.h"
+				RelativePath=".\libs\zlib\deflate.c"
 				>
 			</File>
 			<File
-				RelativePath="libs\zlib\inftrees.c"
-				>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="libs\zlib\inftrees.h"
+				RelativePath=".\libs\zlib\deflate.h"
 				>
 			</File>
 			<File
-				RelativePath="libs\zlib\contrib\minizip\ioapi.c"
-				>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="libs\zlib\contrib\minizip\ioapi.h"
+				RelativePath=".\libs\zlib\gzclose.c"
 				>
 			</File>
 			<File
-				RelativePath="libs\zlib\trees.c"
-				>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="libs\zlib\trees.h"
+				RelativePath=".\libs\zlib\gzguts.h"
 				>
 			</File>
 			<File
-				RelativePath="libs\zlib\uncompr.c"
-				>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="libs\zlib\contrib\minizip\unzip.c"
-				>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="libs\zlib\contrib\minizip\unzip.h"
+				RelativePath=".\libs\zlib\gzlib.c"
 				>
 			</File>
 			<File
-				RelativePath="libs\zlib\zconf.h"
+				RelativePath=".\libs\zlib\gzread.c"
 				>
 			</File>
 			<File
-				RelativePath="libs\zlib\zlib.h"
+				RelativePath=".\libs\zlib\gzwrite.c"
 				>
 			</File>
 			<File
-				RelativePath="libs\zlib\zutil.c"
+				RelativePath=".\libs\zlib\infback.c"
 				>
-				<FileConfiguration
-					Name="Release|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						PreprocessorDefinitions=""
-					/>
-				</FileConfiguration>
 			</File>
 			<File
-				RelativePath="libs\zlib\zutil.h"
+				RelativePath=".\libs\zlib\inffast.c"
+				>
+			</File>
+			<File
+				RelativePath=".\libs\zlib\inffast.h"
+				>
+			</File>
+			<File
+				RelativePath=".\libs\zlib\inffixed.h"
+				>
+			</File>
+			<File
+				RelativePath=".\libs\zlib\inflate.c"
+				>
+			</File>
+			<File
+				RelativePath=".\libs\zlib\inflate.h"
+				>
+			</File>
+			<File
+				RelativePath=".\libs\zlib\inftrees.c"
+				>
+			</File>
+			<File
+				RelativePath=".\libs\zlib\inftrees.h"
+				>
+			</File>
+			<File
+				RelativePath=".\libs\zlib\contrib\minizip\ioapi.c"
+				>
+			</File>
+			<File
+				RelativePath=".\libs\zlib\contrib\minizip\ioapi.h"
+				>
+			</File>
+			<File
+				RelativePath=".\libs\zlib\trees.c"
+				>
+			</File>
+			<File
+				RelativePath=".\libs\zlib\trees.h"
+				>
+			</File>
+			<File
+				RelativePath=".\libs\zlib\uncompr.c"
+				>
+			</File>
+			<File
+				RelativePath=".\libs\zlib\contrib\minizip\unzip.c"
+				>
+			</File>
+			<File
+				RelativePath=".\libs\zlib\contrib\minizip\unzip.h"
+				>
+			</File>
+			<File
+				RelativePath=".\libs\zlib\zconf.h"
+				>
+			</File>
+			<File
+				RelativePath=".\libs\zlib\zlib.h"
+				>
+			</File>
+			<File
+				RelativePath=".\libs\zlib\zutil.c"
+				>
+			</File>
+			<File
+				RelativePath=".\libs\zlib\zutil.h"
 				>
 			</File>
 		</Filter>

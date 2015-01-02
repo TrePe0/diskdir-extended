@@ -1,4 +1,4 @@
-iso plugin for Total Commander (read CD-ROM images) version 1.7.3 beta
+iso plugin for Total Commander (read CD-ROM images) version 1.7.6
 
 Official Polish ISO.WCX plugin website, with tutorials and FAQ
 can be found at http://cdrlab.pl
@@ -106,5 +106,10 @@ Changes:
               information about this image format and help in implementation
             - fixed bug: large files (>4Gb) may be read with errors
 2006.01.12  - fixed bug: buffer overflow in reading of ISO headers
-            
-            
+2007.01.23  version 1.7.4 beta 1
+            - fixed bug: crash on images with long names. special thanks to
+              Tan Chew Keong for bug report (http://vuln.sg/)
+2009.03.10  version 1.7.6
+            - fixed minor bug: on large (DVD) images opening of image may take
+              signoficant time (up to 20 minutes)
+
