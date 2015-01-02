@@ -111,7 +111,7 @@
 			<Tool
 				Name="VCPostBuildEventTool"
 				Description="Compress wcx"
-				CommandLine="upx\upx.exe -9 Release\DiskDirExtended.wcx"
+				CommandLine="upx\upx.exe  --ultra-brute Release\DiskDirExtended.wcx"
 			/>
 		</Configuration>
 		<Configuration

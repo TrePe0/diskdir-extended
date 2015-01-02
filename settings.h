@@ -5,6 +5,7 @@
 #include <string>
 #include <map>
 #include <vector>
+#include <set>
 #include "libs/inifile/IniFile.h"
 #include "defs.h"
 #include "api_totalcmd.h"
@@ -18,8 +19,10 @@ class Settings {
 
 	string lineFormat;
 
+	bool listArchives;
 	bool tryCanYouHandleThisFile;
 	bool listEmptyFile;
+	bool listOnlyDirectories;
 
 	// how many columns to list: 1..8 = (name, size, years, months, days, hours, minutes, seconds)
 	int listColumns;
@@ -36,6 +39,8 @@ public:
 	map <string, pair<string, bool> >::iterator which_wcx; // iterator for wcxmap
 	map <string, FILE_TYPE_ELEM> fileTypeMap;
 	map <string, FILE_TYPE_ELEM>::iterator fileTypeMapIt;
+	set <string> wcxHandleableSet;
+	set <string>::iterator wcxHandleableSetIt;
 
 	Settings() {
 		iniFileName[0] = '\0';
@@ -48,7 +53,9 @@ public:
 		equivalent_ext.clear();
 
 		tryCanYouHandleThisFile = false;
+		listArchives = true;
 		listEmptyFile = false;
+		listOnlyDirectories = false;
 
 		listColumns = 8;
 		zerosInMonths = false;
@@ -65,7 +72,9 @@ public:
 	const char* getIniFileName() {return iniFileName;}
 
 	const bool getTryCanYouHandleThisFile() {return tryCanYouHandleThisFile;}
+	const bool getListArchives() {return listArchives;}
 	const bool getListEmptyFile() {return listEmptyFile;}
+	const bool getListOnlyDirectories() {return listOnlyDirectories;}
 
 	const bool getZerosInMonths() {return zerosInMonths;}
 	const bool getZerosInDays() {return zerosInDays;}
@@ -81,7 +90,9 @@ public:
 	bool saveConfig();
 
 	void setTryCanYouHandleThisFile(bool val) {tryCanYouHandleThisFile = val;}
+	void setListArchives(bool val) {listArchives = val;}
 	void setListEmptyFile(bool val) {listEmptyFile = val;}
+	void setListOnlyDirectories(bool val) {listOnlyDirectories = val;}
 
 	void setListColumns(int val) {if (val < 1 || val > 8) val = 8; listColumns = val; lineFormat.clear();}
 	void setZerosInMonths(bool val) {zerosInMonths = val; lineFormat.clear();}

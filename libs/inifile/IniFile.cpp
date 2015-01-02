@@ -161,7 +161,7 @@ BOOL CIniFile::OpenIniFile (CCHR * FileName)
 			FreeAllMem ();
 			return FALSE;
 		}
-		strcpy_s (pEntry->pText,8192, Str);
+		strcpy(pEntry->pText, Str);
 		pStr = strchr (Str,';');
 		if (pStr != NULL) { *pStr = 0; } /* Cut all comments */
 		if ( (strstr (Str, "[") > 0) && (strstr (Str, "]") > 0) ) /* Is Section */

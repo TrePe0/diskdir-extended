@@ -1,4 +1,4 @@
-DiskDir Extended 1.55 (2007-01-10) - plugin for Total Commander
+DiskDir Extended 1.65 (2009-08-08) - plugin for Total Commander
 ================
 
 The same as DiskDir - creates a list file with all selected files and directories,
@@ -20,7 +20,7 @@ the option "Search in archives".
 
 Installation (TotalCommander 6.5 and later):
 
-1. View contents of DiskDirExtended_1.55.zip within TotalCommander
+1. View contents of DiskDirExtended_1.65.zip within TotalCommander
 2. Follow instructions
 
 Installation (TotalCommander prior to 6.5):
@@ -51,6 +51,19 @@ Bratislava (Slovakia)
 mailto: peter.trebaticky@gmail.com
 
 Changelog:  
+**1.65**
+
+* added possibility to not list any archive
+* added possibility to choose (in DiskDirExtended.ini) on which extensions
+  to try CanYouHandleThisFile for other installed plugins
+
+**1.60**
+
+* added possibility to list only directories
+* fixed case sensitivity of file extensions
+* fixed creation of directory by F7
+* fixed off by one error in reported file size for files > 4GB
+
 **1.55**
 
 * added possibility to list not all information (size, date, time)

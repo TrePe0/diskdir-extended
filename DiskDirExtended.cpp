@@ -1,6 +1,6 @@
-// (c) 2007 Peter Trebaticky
-// DiskDir Extended v1.51, plugin for Total Commander, www.ghisler.com
-// Last change: 2007/01/02
+// (c) 2009 Peter Trebaticky
+// DiskDir Extended v1.56, plugin for Total Commander, www.ghisler.com
+// Last change: 2009/08/05
 
 #include "wcxhead.h"
 #include "defs.h"
@@ -398,23 +398,54 @@ int __stdcall DeleteFiles (char *PackedFile, char *deleteList)
 }
 
 int DetermineFileTypeFromName(const char* fName) {
-	if(fName[strlen(fName) - 1] == '\\') return FILE_TYPE_DIRECTORY;
-
 	int fNameLen = strlen(fName);
-	for (settings.fileTypeMapIt = settings.fileTypeMap.begin(); settings.fileTypeMapIt != settings.fileTypeMap.end(); ++settings.fileTypeMapIt) {
-		if (fNameLen >= settings.fileTypeMapIt->first.size() &&
-			stricmp(settings.fileTypeMapIt->first.c_str(), fName + fNameLen - settings.fileTypeMapIt->first.size()) == 0)
-		{
-			settings.which_wcx = settings.fileTypeMapIt->second.which_wcx;
-			return settings.fileTypeMapIt->second.fileType;
+	if(fName[fNameLen - 1] == '\\') return FILE_TYPE_DIRECTORY;
+
+	int i;
+	char *fNameCI = (char*) malloc(fNameLen+1);
+	for (i = 0; fName[i] != '\0'; i++) fNameCI[i] = tolower(fName[i]);
+	fNameCI[i] = '\0';
+	for (i = 0; fNameCI[i] != '\0'; i++) {
+		if (fNameCI[i] == '.') {
+			settings.fileTypeMapIt = settings.fileTypeMap.find(fNameCI+i);
+			if (settings.fileTypeMapIt != settings.fileTypeMap.end()) {
+				settings.which_wcx = settings.fileTypeMapIt->second.which_wcx;
+				free(fNameCI);
+				return settings.fileTypeMapIt->second.fileType;
+			}
 		}
 	}
+	free(fNameCI);
 	return FILE_TYPE_REGULAR;
 }
+
+bool DetermineWcxHandleableFromName(const char* fName) {
+	if (settings.wcxHandleableSet.empty()) return true;
+	int fNameLen = strlen(fName);
+	if(fName[fNameLen - 1] == '\\') return false;
+
+	int i;
+	char *fNameCI = (char*) malloc(fNameLen+1);
+	for (i = 0; fName[i] != '\0'; i++) fNameCI[i] = tolower(fName[i]);
+	fNameCI[i] = '\0';
+	for (i = 0; fNameCI[i] != '\0'; i++) {
+		if (fNameCI[i] == '.') {
+			settings.wcxHandleableSetIt = settings.wcxHandleableSet.find(fNameCI+i);
+			if (settings.wcxHandleableSetIt != settings.wcxHandleableSet.end()) {
+				free(fNameCI);
+				return true;
+			}
+		}
+	}
+	free(fNameCI);
+	return false;
+}
+
 int DetermineFileType(const char *fName)
 {
 	int fType = DetermineFileTypeFromName(fName);
-	if (fType == FILE_TYPE_REGULAR && settings.getTryCanYouHandleThisFile()) {
+	// directory added by F7 does not exist
+	if (fType == FILE_TYPE_REGULAR && settings.getTryCanYouHandleThisFile() && DetermineWcxHandleableFromName(fName)) {
 		// try to determine file type using wcx plugins' CanYouHandleThisFile
 
 		for (settings.which_wcx = settings.wcxmap.begin(); settings.which_wcx != settings.wcxmap.end(); ++settings.which_wcx) {
@@ -439,12 +470,19 @@ int DetermineFileType(const char *fName)
 
 LIST_OPTION_ENUM GetFileListType(const char *fName) {
 	int i;
-	for (i = 0; fName[i] != '\0'; i++) {
-		if (fName[i] == '.') {
-			settings.fileTypeMapIt = settings.fileTypeMap.find(fName+i);
-			if (settings.fileTypeMapIt != settings.fileTypeMap.end()) return settings.fileTypeMapIt->second.list_this;
+	char *fNameCI = (char*) malloc(strlen(fName)+1);
+	for (i = 0; fName[i] != '\0'; i++) fNameCI[i] = tolower(fName[i]);
+	fNameCI[i] = '\0';
+	for (i = 0; fNameCI[i] != '\0'; i++) {
+		if (fNameCI[i] == '.') {
+			settings.fileTypeMapIt = settings.fileTypeMap.find(fNameCI+i);
+			if (settings.fileTypeMapIt != settings.fileTypeMap.end()) {
+				free(fNameCI);
+				return settings.fileTypeMapIt->second.list_this;
+			}
 		}
 	}
+	free(fNameCI);
 	return LIST_YES;
 }
 
@@ -529,13 +567,15 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 		FILETIME t;
 		SYSTEMTIME ts;
 
-		fType = DetermineFileType(str);
-		if(fType == FILE_TYPE_DIRECTORY) str[strlen(str) - 1] = '\0';
 		GetFileAttributesEx(str, GetFileExInfoStandard, (LPVOID)(&buf));
+		// sometimes we get directory without ending backslash
+		if (buf.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) if (str[strlen(str) - 1] != '\\') strcat(str, "\\");
+		
+		fType = DetermineFileType(str);
 		if(fType == FILE_TYPE_DIRECTORY)
 		{
 			FileTimeToLocalFileTime(&(buf.ftLastWriteTime), &t);
-			strcat(str, "\\");
+			str[strlen(str) - 1] = '\\';
 			buf.nFileSizeLow = 0;
 		}
 		else FileTimeToLocalFileTime(&(buf.ftLastWriteTime), &t);
@@ -551,35 +591,42 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 			return E_EABORTED;
 		}
 
-		if (fType != FILE_TYPE_DIRECTORY)
-		switch(GetFileListType(fName))
-		{
-			case LIST_NO:
-				fType = FILE_TYPE_REGULAR;
-			break;
-			case LIST_ASK:
-				switch(DialogBoxParam(dllInstance, MAKEINTRESOURCE(IDD_LIST_FILE), NULL, DialogFunc2, (LPARAM)fName))
-				{
+		if (fType != FILE_TYPE_DIRECTORY) {
+			// if we do not want to list any archive OR
+			// if we do not want to list any file except directories
+			if (!settings.getListArchives() || settings.getListOnlyDirectories()) fType = FILE_TYPE_REGULAR;
+			else
+			switch(GetFileListType(fName))
+			{
+				case LIST_NO:
+					fType = FILE_TYPE_REGULAR;
+					break;
+				case LIST_ASK:
+					switch(DialogBoxParam(dllInstance, MAKEINTRESOURCE(IDD_LIST_FILE), NULL, DialogFunc2, (LPARAM)fName))
+					{
 					case 1: // No
 						fType = FILE_TYPE_REGULAR;
-					break;
+						break;
 					case 2: // Yes for all
 						SetFileListType(fName, LIST_YES);
-					break;
+						break;
 					case 3: // No for all
 						SetFileListType(fName, LIST_NO);
 						fType = FILE_TYPE_REGULAR;
+						break;
+					}
 					break;
-				}
-			break;
-			case LIST_YES:
-			break;
+				case LIST_YES:
+					break;
+			}
+		} else {
+			if (fName[strlen(fName) - 1] != '\\') strcat(fName,"\\");
 		}
 		switch(fType)
 		{
 			case FILE_TYPE_BY_WCX:
 				strcat(fName, "\\");
-				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
+				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * 0x100000000ULL + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
 				if ((j = ListByWCX(settings.which_wcx->second.first.c_str(), str)) < 0) {
@@ -593,7 +640,7 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 			case FILE_TYPE_ZIP:
 			case FILE_TYPE_JAR:
 				strcat(fName, "\\");
-				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
+				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * 0x100000000ULL + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
 				if ((j = ListZIP(str)) < 0) {
@@ -606,7 +653,7 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 			break;
 			case FILE_TYPE_RAR:
 				strcat(fName, "\\");
-				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
+				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * 0x100000000ULL + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
 				if ((j = ListRAR(str)) < 0) {
@@ -621,7 +668,7 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 			case FILE_TYPE_TGZ:
 			case FILE_TYPE_TBZ:
 				strcat(fName, "\\");
-				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
+				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * 0x100000000ULL + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
 				if ((j = ListTAR(str, fType)) < 0) {
@@ -634,7 +681,7 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 			break;
 			case FILE_TYPE_ARJ:
 				strcat(fName, "\\");
-				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
+				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * 0x100000000ULL + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
 				if ((j = ListARJ(str)) < 0) {
@@ -647,7 +694,7 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 			break;
 			case FILE_TYPE_ACE:
 				strcat(fName, "\\");
-				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
+				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * 0x100000000ULL + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
 				if ((j = ListACE(str)) < 0) {
@@ -660,7 +707,7 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 			break;
 			case FILE_TYPE_CAB:
 				strcat(fName, "\\");
-				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
+				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * 0x100000000ULL + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
 				if ((j = ListCAB(str)) < 0) {
@@ -673,7 +720,7 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 			break;
 			case FILE_TYPE_ISO:
 				strcat(fName, "\\");
-				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
+				sortedList->insert(curDestPath, fName, buf.nFileSizeHigh * 0x100000000ULL + buf.nFileSizeLow, timeStamp, FILE_TYPE_DIRECTORY);
 				strcpy(curPath, fName);
 				basePathCnt = strlen(curPath);
 				if ((j = ListISO(str)) < 0) {
@@ -685,11 +732,14 @@ int __stdcall PackFiles(char *packedFile, char *subPath, char *srcPath, char *ad
 				}
 
 			break;
+			case FILE_TYPE_REGULAR:
+				// do not list regular file
+				if (settings.getListOnlyDirectories()) break;
 			default:
 				sortedList->insert(
 					curDestPath,
 					fName,
-					buf.nFileSizeHigh * ((unsigned long long)MAXDWORD) + buf.nFileSizeLow,
+					buf.nFileSizeHigh * 0x100000000ULL + buf.nFileSizeLow,
 					timeStamp,
 					fType);
 				basePathCnt = 0;
@@ -1083,8 +1133,8 @@ int ListByWCX(const char* wcx_path, const char* fileName)
 	HANDLE fwcx = pOpenArchive(&toa);
 	if (fwcx == 0) return 0;
 
-	tHeaderData t;
-	tHeaderDataEx tex;
+	tHeaderData t = {0};
+	tHeaderDataEx tex = {0};
 	int ret, num = 0;
 	if (pReadHeaderEx) { // for TC 7 and above
 		notForTC = true;
@@ -1256,90 +1306,6 @@ int ListCAB(const char* cabinet_fullpath)
 	return fdici.cFiles;
 }
 
-/*
-// TAR
-// returns number of packed files
-int ListTAR(FILE *fout, const char* fileName)
-{
-	// tar header structure (just relevant fields)
-	char fname[100], mode[8], uid[8], gid[8], size[12], mtime[12];
-	unsigned fSize, fTime;
-	FILE* ftar;
-	int num = 0;
-
-	char curTarPath[MAX_FULL_PATH_LEN];
-
-	ftar = fopen(fileName, "rb");
-	if(ftar == NULL) return 0;
-
-	curTarPath[0] = '\0';
-	while(TRUE)
-	{
-		if(fread(fname, 1, 100, ftar) != 100 ||
-			fread(mode, 1, 8, ftar) != 8 ||
-			fread(uid, 1, 8, ftar) != 8 ||
-			fread(gid, 1, 8, ftar) != 8 ||
-			fread(size, 1, 12, ftar) != 12 ||
-			fread(mtime, 1, 12, ftar) != 12) break;
-		if(sscanf(size, "%o", &fSize) != 1) break;
-		if(sscanf(mtime, "%o", &fTime) != 1) break;
-		fseek(ftar, 364 + ((fSize + 511) / 512) * 512, SEEK_CUR);
-
-		UnixToWindowsDelimiter(fname);
-
-		if(strncmp(fname, curTarPath, strlen(curTarPath)) == 0)
-		{
-			if(fname[strlen(fname) - 1] == '\\')
-			{
-				if(fname[strlen(fname) - 1] != '\\') strcat(fname, "\\");
-				fprintf(fout, "%s%s", curPath, fname);
-				strcpy(curTarPath, fname);
-			}
-			else
-			{
-				fprintf(fout, "%s", fname + strlen(curTarPath));
-			}
-		}
-		else
-		{
-			if(fname[strlen(fname) - 1] == '\\')
-			{
-				if(fname[strlen(fname) - 1] != '\\') strcat(fname, "\\");
-				fprintf(fout, "%s%s", curPath, fname);
-				strcpy(curTarPath, fname);
-			}
-			else
-			{
-				if(strrchr(fname, '\\') != NULL)
-				{
-					int j;
-					j = (int)strrchr(fname, '\\') - (int)fname + 1;
-					strncpy(curTarPath, fname, j);
-					curTarPath[j] = '\0';
-				}
-				else
-				{
-					curTarPath[0] = '\0';
-				}
-				fprintf(fout, "%s%s\t0\t1980.1.1\t1:0.0\n", curPath, curTarPath);
-				fprintf(fout, "%s", fname + strlen(curTarPath));
-			}
-		}
-		struct tm *ts;
-		ts = localtime((time_t*)&fTime);
-		fprintf(fout, "\t%d\t%d.%d.%d\t%d:%d.%d\n",
-			fSize,
-			ts->tm_year + 1900, ts->tm_mon + 1, ts->tm_mday,
-			ts->tm_hour, ts->tm_min, ts->tm_sec);
-
-		num++;
-	}
-	fclose(ftar);
-
-	return num;
-}
-*/
-
 //----------------------------------------------------------------------------
 //----------------------------------------------------------------------------
 //---------------- Functions and dialog boxes for settings -------------------
@@ -1395,11 +1361,21 @@ BOOL CALLBACK DialogFunc(HWND hdwnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 				CheckDlgButton(hdwnd, IDC_RADIO1 + i - 1, BST_CHECKED);
 			}
 
+			if (settings.getListArchives()) {
+				CheckDlgButton(hdwnd, IDC_CHECK7, BST_CHECKED);
+			} else {
+				CheckDlgButton(hdwnd, IDC_CHECK7, BST_UNCHECKED);
+				EnableWindow(GetDlgItem(hdwnd,IDC_LIST_ARCHIVES),FALSE);
+			}
+
 			if (settings.getZerosInMonths()) CheckDlgButton(hdwnd, IDC_CHECK1, BST_CHECKED);
 			if (settings.getZerosInDays()) CheckDlgButton(hdwnd, IDC_CHECK2, BST_CHECKED);
 			if (settings.getZerosInHours()) CheckDlgButton(hdwnd, IDC_CHECK3, BST_CHECKED);
 			if (settings.getZerosInMinutes()) CheckDlgButton(hdwnd, IDC_CHECK4, BST_CHECKED);
 			if (settings.getZerosInSeconds()) CheckDlgButton(hdwnd, IDC_CHECK5, BST_CHECKED);
+
+			if (settings.getListOnlyDirectories()) CheckDlgButton(hdwnd, IDC_CHECK6, BST_CHECKED);
+
 /*
 			switch (listEmptyFile) {
 				case LIST_YES: SetDlgItemText(hdwnd, IDC_EMPTY, "yes"); CheckDlgButton(hdwnd, IDC_EMPTY, BST_CHECKED); break;
@@ -1442,6 +1418,9 @@ BOOL CALLBACK DialogFunc(HWND hdwnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 						case BST_INDETERMINATE: SetDlgItemText(hdwnd, IDC_EMPTY, "ask"); break;
 					}
 					return TRUE;
+				case IDC_CHECK7:
+					EnableWindow(GetDlgItem(hdwnd,IDC_LIST_ARCHIVES), IsDlgButtonChecked(hdwnd, IDC_CHECK7));
+					return TRUE;
 				case IDC_RADIO1:
 				case IDC_RADIO2:
 				case IDC_RADIO3:
@@ -1483,11 +1462,15 @@ BOOL CALLBACK DialogFunc(HWND hdwnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 					for (i = IDC_RADIO8; i > IDC_RADIO1; i--) if (IsDlgButtonChecked(hdwnd, i) == BST_CHECKED) break;
 					settings.setListColumns(i - IDC_RADIO1 + 1);
 
+					settings.setListArchives(IsDlgButtonChecked(hdwnd, IDC_CHECK7));
+
 					settings.setZerosInMonths(IsDlgButtonChecked(hdwnd, IDC_CHECK1) == BST_CHECKED);
 					settings.setZerosInDays(IsDlgButtonChecked(hdwnd, IDC_CHECK2) == BST_CHECKED);
 					settings.setZerosInHours(IsDlgButtonChecked(hdwnd, IDC_CHECK3) == BST_CHECKED);
 					settings.setZerosInMinutes(IsDlgButtonChecked(hdwnd, IDC_CHECK4) == BST_CHECKED);
 					settings.setZerosInSeconds(IsDlgButtonChecked(hdwnd, IDC_CHECK5) == BST_CHECKED);
+
+					settings.setListOnlyDirectories(IsDlgButtonChecked(hdwnd, IDC_CHECK6) == BST_CHECKED);
 					if(!settings.saveConfig()) {
 						char res[8192];
 						LoadString(dllInstance, IDS_ERROR_CREATE_INI, (LPSTR) res, 8192);

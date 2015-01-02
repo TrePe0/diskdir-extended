@@ -84,18 +84,22 @@ void Settings::readConfig() {
 	}
 
 	tryCanYouHandleThisFile = false;
+	wcxHandleableSet.clear();
+	listArchives = true;
 	listEmptyFile = false;
 	equivalent_ext.clear();
 
 	CIniFile my_ini;
 	char *str;
 	if (my_ini.OpenIniFile(iniFileName) != NULL) {
+		str = (char*) my_ini.ReadString("ListingOptions", "ListArchives", "yes");
+		listArchives = (strcmp(str, "yes") == 0);
 		str = (char*) my_ini.ReadString("ListingOptions", "ListEmptyArchives", "no");
-		if (strcmp(str, "yes") == 0) listEmptyFile = true;
-		else listEmptyFile = false;
+		listEmptyFile = (strcmp(str, "yes") == 0);
 		str = (char*) my_ini.ReadString("ListingOptions", "UseCanHandleThisFileForWCXs", "no");
-		if (strcmp(str, "yes") == 0) tryCanYouHandleThisFile = true;
-		else tryCanYouHandleThisFile = false;
+		tryCanYouHandleThisFile = (strcmp(str, "yes") == 0);
+		str = (char*) my_ini.ReadString("ListingOptions", "ListOnlyDirectories", "no");
+		setListOnlyDirectories(strcmp(str, "yes") == 0);
 		setListColumns(my_ini.ReadInt("ListingOptions", "ColumnsToList", 8));
 		str = (char*) my_ini.ReadString("ListingOptions", "ZerosInMonths", "no");
 		setZerosInMonths(strcmp(str, "yes") == 0);
@@ -114,7 +118,8 @@ void Settings::readConfig() {
 			if (cur == NULL || cur->Type == tpSECTION) break;
 			if (cur->Type == tpKEYVALUE) {
 				ext[1] = '\0';
-				strncpy(buf, cur->pText, 8192);
+				strncpy(buf, cur->pText, 8192); buf[8191] = '\0';
+				for (int i = 0; buf[i] != '\0'; i++) buf[i] = tolower(buf[i]);
 				equivalent_ext.push_back(buf);
 				pc = strtok(buf, "=");
 				if (pc != NULL) {
@@ -143,6 +148,7 @@ void Settings::readConfig() {
 			pc = strtok(NULL, ",");
 		}
 		str = (char*) my_ini.ReadString("ListingOptions", "ListNever", "");
+		for (int i = 0; str[i] != '\0'; i++) str[i] = tolower(str[i]);
 		pc = strtok(str, ",");
 		while (pc != NULL) {
 			strncpy(ext + 1, pc, 51);
@@ -151,6 +157,7 @@ void Settings::readConfig() {
 			pc = strtok(NULL, ",");
 		}
 		str = (char*) my_ini.ReadString("ListingOptions", "ListAsk", "");
+		for (int i = 0; str[i] != '\0'; i++) str[i] = tolower(str[i]);
 		pc = strtok(str, ",");
 		while (pc != NULL) {
 			strncpy(ext + 1, pc, 51);
@@ -158,6 +165,25 @@ void Settings::readConfig() {
 			if (fileTypeMapIt != fileTypeMap.end()) fileTypeMapIt->second.list_this = LIST_ASK;
 			pc = strtok(NULL, ",");
 		}
+
+		str = (char*) my_ini.ReadString("ListingOptions", "ListAlways", "");
+		pc = strtok(str, ",");
+		while (pc != NULL) {
+			strncpy(ext + 1, pc, 51);
+			fileTypeMapIt = fileTypeMap.find(ext);
+			if (fileTypeMapIt != fileTypeMap.end()) fileTypeMapIt->second.list_this = LIST_YES;
+			pc = strtok(NULL, ",");
+		}
+
+		str = (char*) my_ini.ReadString("ListingOptions", "UseCanHandleThisFileForWCXsExtensions", "");
+		for (int i = 0; str[i] != '\0'; i++) str[i] = tolower(str[i]);
+		pc = strtok(str, ",");
+		while (pc != NULL) {
+			strncpy(ext + 1, pc, 51);
+			wcxHandleableSet.insert(ext);
+			pc = strtok(NULL, ",");
+		}
+
 		my_ini.CloseIniFile();
 	}
 
@@ -173,6 +199,8 @@ bool Settings::saveConfig() {
 	if (fout == NULL) return false;
 	fprintf(fout, ";You can edit this file, but be aware that your comments will not be preserved\n");
 	fprintf(fout, "[ListingOptions]\n");
+	fprintf(fout, ";Whether to list archives, can be \"yes\" or \"no\"\n");
+	fprintf(fout, "ListArchives=%s\n", listArchives ? "yes" : "no");
 	fprintf(fout, "ListAlways=");
 	bool first = true;
 	for (fileTypeMapIt = fileTypeMap.begin(); fileTypeMapIt != fileTypeMap.end(); ++fileTypeMapIt) {
@@ -206,6 +234,18 @@ bool Settings::saveConfig() {
 	fprintf(fout, ";Whether to try to list files with unknown extensions by plugins (can be slow)\n");
 	fprintf(fout, ";can be \"yes\" or \"no\"\n");
 	fprintf(fout, "UseCanHandleThisFileForWCXs=%s\n", tryCanYouHandleThisFile ? "yes" : "no");
+	fprintf(fout, ";If UseCanHandleThisFileForWCXs is yes, which extensions to try (empty means all)\n");
+	fprintf(fout, "UseCanHandleThisFileForWCXsExtensions=");
+	first = true;
+	for (wcxHandleableSetIt = wcxHandleableSet.begin(); wcxHandleableSetIt != wcxHandleableSet.end(); ++wcxHandleableSetIt) {
+		if (!first) fprintf(fout, ","); else first = false;
+		fprintf(fout, "%s", wcxHandleableSetIt->c_str() + 1);
+	}
+	fprintf(fout, "\n");
+
+	fprintf(fout, ";Whether to list only directories\n");
+	fprintf(fout, ";can be \"yes\" or \"no\"\n");
+	fprintf(fout, "ListOnlyDirectories=%s\n", listOnlyDirectories ? "yes" : "no");
 	fprintf(fout, ";How many columns to list: 1 to 8 inclusive; the order of columns is:\n");
 	fprintf(fout, ";  1:name, 2:size, 3:year, 4:month, 5:day, 6:hours, 7:minutes, 8:seconds\n");
 	fprintf(fout, "ColumnsToList=%d\n", listColumns);
